@@ -109,7 +109,7 @@ export default function SettingsPage() {
           </Button>
         </div>
         <h3 className="mt-5 text-sm font-semibold">What a settings sync sends</h3>
-        <pre className="mt-2 overflow-x-auto rounded-2xl bg-bone-2 p-3 text-xs dark:bg-night">{JSON.stringify(payload, null, 2)}</pre>
+        <pre className="mt-2 overflow-x-auto rounded-lg border border-zinc-200 bg-zinc-100 p-3 text-xs dark:border-zinc-800 dark:bg-zinc-950">{JSON.stringify(payload, null, 2)}</pre>
         <div className="mt-3 flex flex-wrap gap-2">
           <Button
             type="button"
@@ -168,7 +168,7 @@ export default function SettingsPage() {
           <Button type="button" variant="secondary" onClick={() => void run(async () => { await store.downloadRestore(); return "Restore file downloaded." })}>
             Download restore file
           </Button>
-          <label className="inline-flex min-h-11 cursor-pointer items-center rounded-full border border-ink/20 px-4 text-sm font-semibold dark:border-white/15">
+          <label className="inline-flex min-h-11 cursor-pointer items-center rounded-lg border border-zinc-300 px-4 text-sm font-semibold dark:border-zinc-800">
             Restore from file
             <input
               className="sr-only"

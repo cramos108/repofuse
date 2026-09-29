@@ -13,15 +13,16 @@ export function ProfileCard({
   waived: boolean
 }) {
   return (
-    <article className="rounded-3xl bg-ink p-5 text-bone">
-      <p className="text-xs font-semibold tracking-[0.16em] text-amber-2 uppercase">
+    <article className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 text-zinc-50 shadow-lg shadow-cyan-500/10">
+      <p className="badge">
+        <span aria-hidden className="status-dot text-cyan-300" />
         {profile.code} worksheet · {PROFILE_REVISION}
       </p>
       <h2 className="mt-2 font-display text-3xl">{profile.name}</h2>
-      <p className="mt-3 text-sm leading-6 text-bone/85">{profile.summary}</p>
+      <p className="mt-3 text-sm leading-6 text-zinc-300">{profile.summary}</p>
       <dl className="mt-5 grid gap-3 text-sm">
         <div>
-          <dt className="text-amber-2">Pre-repo cure</dt>
+          <dt className="text-cyan-300">Pre-repo cure</dt>
           <dd>
             {waived
               ? "Waived on this device"
@@ -31,11 +32,11 @@ export function ProfileCard({
           </dd>
         </div>
         <div>
-          <dt className="text-amber-2">Disposition wait</dt>
+          <dt className="text-cyan-300">Disposition wait</dt>
           <dd>{waitDays} days after the notice of intent, then the next morning</dd>
         </div>
         <div>
-          <dt className="text-amber-2">Reinstatement</dt>
+          <dt className="text-cyan-300">Reinstatement</dt>
           <dd>
             {profile.reinstatement === "none"
               ? "Not flagged on this worksheet"
@@ -45,14 +46,14 @@ export function ProfileCard({
           </dd>
         </div>
         <div>
-          <dt className="text-amber-2">Personal property</dt>
+          <dt className="text-cyan-300">Personal property</dt>
           <dd>{profile.personalPropertyNote}</dd>
         </div>
       </dl>
-      <p className="mt-4 text-xs leading-5 text-bone/70">{COUNTDOWN_RULE}</p>
+      <p className="mt-4 text-xs leading-5 text-zinc-400">{COUNTDOWN_RULE}</p>
       <details className="mt-4 text-sm">
-        <summary className="cursor-pointer text-amber-2">Citations on this worksheet</summary>
-        <ul className="mt-2 list-disc space-y-2 pl-5 text-bone/80">
+        <summary className="cursor-pointer text-cyan-300">Citations on this worksheet</summary>
+        <ul className="mt-2 list-disc space-y-2 pl-5 text-zinc-300">
           {profile.cites.map((cite) => (
             <li key={cite}>{cite}</li>
           ))}

@@ -16,8 +16,8 @@ export default defineConfig({
         short_name: "RepoFuse",
         description:
           "Local-first compliance log for BHPH default notices, recovery guardrails, and post-repo files.",
-        theme_color: "#1c1915",
-        background_color: "#f3efe4",
+        theme_color: "#09090b",
+        background_color: "#09090b",
         display: "standalone",
         start_url: "/",
         scope: "/",

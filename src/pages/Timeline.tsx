@@ -93,7 +93,7 @@ export default function TimelinePage() {
         </form>
         <ul className="mt-5 space-y-3 text-sm">
           {notices.map((notice) => (
-            <li key={notice.id} className="rounded-2xl border border-line p-3 dark:border-white/10">
+            <li key={notice.id} className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
               <p className={notice.voided ? "line-through opacity-60" : ""}>
                 {formatLongDate(notice.sentOn)} · {NOTICE_LABEL[notice.kind]} · {METHOD_LABEL[notice.method]}
                 {notice.trackingNumber ? ` · ${notice.trackingNumber}` : ""}

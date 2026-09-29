@@ -21,7 +21,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       const dark = choice === "dark" || (choice === "system" && media.matches)
       root.classList.toggle("dark", dark)
       root.style.colorScheme = dark ? "dark" : "light"
-      document.getElementById("theme-color")?.setAttribute("content", dark ? "#12110e" : "#f3efe4")
+      document.getElementById("theme-color")?.setAttribute("content", dark ? "#09090b" : "#f4f4f5")
     }
     apply()
     try {
@@ -49,5 +49,5 @@ function readChoice(): ThemeChoice {
   } catch {
     /* ignore */
   }
-  return "system"
+  return "dark"
 }

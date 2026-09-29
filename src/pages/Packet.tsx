@@ -63,7 +63,7 @@ export default function PacketPage() {
         </Button>
       </div>
       {error ? <p role="alert" className="text-sm font-semibold text-rose">{error}</p> : null}
-      <section className="rounded-3xl border border-line bg-white p-5 text-sm leading-6 dark:border-white/10 dark:bg-night-2">
+      <section className="panel p-5 text-sm leading-6">
         {model.freeBanner ? <p className="font-semibold text-rose">FREE LOT FILE — stored on this device</p> : null}
         <h2 className="mt-2 font-display text-3xl">{model.title}</h2>
         <p>{model.dealership}</p>

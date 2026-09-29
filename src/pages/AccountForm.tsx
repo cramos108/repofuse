@@ -150,7 +150,7 @@ export default function AccountForm({ mode }: { mode: "create" | "edit" }) {
         {saving ? "Saving on this device…" : "Save file"}
       </Button>
       {existing ? (
-        <div className="rounded-3xl border border-rose/30 p-4">
+        <div className="rounded-xl border border-rose-500/40 p-4">
           <h2 className="font-semibold">Delete this file from the device</h2>
           <p className="mt-1 text-sm leading-6">Export a packet first. Type DELETE to remove the borrower file from this browser.</p>
           <TextInput className="mt-3" value={deleteText} onChange={(event) => setDeleteText(event.target.value)} aria-label="Type DELETE" />

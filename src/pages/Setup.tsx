@@ -114,7 +114,11 @@ export default function SetupPage() {
           Back
         </Link>
       </div>
-      <h1 className="mt-8 font-display text-4xl md:text-5xl">Choose the lot’s state.</h1>
+      <p className="badge mt-8">
+        <span aria-hidden className="status-dot text-cyan-300" />
+        Local-first worksheet
+      </p>
+      <h1 className="mt-3 font-display text-4xl md:text-5xl">Choose the lot’s state.</h1>
       <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft dark:text-paper/70">
         The worksheet arms cure countdowns, the disposition wait, and any extra guardrails for that
         state. {COUNTDOWN_RULE}

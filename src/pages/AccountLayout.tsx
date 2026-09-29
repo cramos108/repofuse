@@ -5,8 +5,7 @@ import { getProfile } from "../domain/profiles"
 import { computeStage } from "../domain/stage"
 import { useStore } from "../state/Store"
 
-const tabClass = ({ isActive }: { isActive: boolean }) =>
-  `shrink-0 rounded-full px-3 py-2 text-sm font-semibold ${isActive ? "bg-ink text-bone dark:bg-paper dark:text-ink" : "bg-white text-ink-soft dark:bg-night-2 dark:text-paper/70"}`
+const tabClass = ({ isActive }: { isActive: boolean }) => (isActive ? "chip-on" : "chip")
 
 export default function AccountLayout() {
   const { id } = useParams()
@@ -27,7 +26,7 @@ export default function AccountLayout() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="font-display text-4xl">{account.borrowerName}</h1>
-          <p className="mt-1 text-sm text-ink-soft dark:text-paper/70">
+          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
             {account.vehicleYear} {account.vehicleMake} {account.vehicleModel} · {account.vin || "No VIN"} · {formatMoney(account.amountPastDueCents)} past due
           </p>
         </div>

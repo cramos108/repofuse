@@ -156,7 +156,7 @@ export default function FieldPage() {
         </form>
         <ul className="mt-4 space-y-3">
           {items.map((item) => (
-            <li key={item.id} className="rounded-2xl border border-line p-3 text-sm dark:border-white/10">
+            <li key={item.id} className="rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-800">
               <p className="font-semibold">{item.description}</p>
               <p>{item.condition || "Condition not noted"} · {item.storageLocation || "Location not noted"} · {item.status}</p>
               {item.status === "held" ? (

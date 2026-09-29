@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { Link } from "react-router-dom"
-import { Banner, Button, Card, StagePill, TextInput, usePageTitle } from "../components/ui"
+import { Banner, Button, Card, StagePill, StatusDot, TextInput, usePageTitle } from "../components/ui"
 import { FREE_OPEN_ACCOUNT_LIMIT } from "../domain/copy"
 import { getProfile } from "../domain/profiles"
 import { computeStage } from "../domain/stage"
@@ -48,20 +48,42 @@ export default function Dashboard() {
     return matchesQuery && matchesFilter
   })
   const slots = workspace ? remainingOpenSlots(store.accounts, workspace.tier) : null
+  const metrics = [
+    { label: "Cure active", value: rows.filter((row) => row.stage.stage === "cure_active").length, dot: "text-violet-300" },
+    { label: "Guardrails", value: rows.filter((row) => row.stage.stage === "guardrails_open").length, dot: "text-cyan-300" },
+    { label: "Ready", value: rows.filter((row) => row.stage.stage === "ready_for_recovery").length, dot: "text-emerald-400" },
+  ]
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-4xl">Active delinquencies</h1>
-          <p className="mt-1 text-sm text-ink-soft dark:text-paper/70">
+          <p className="badge">
+            <StatusDot />
+            Local-first · UCC Article 9
+          </p>
+          <h1 className="mt-3 font-display text-4xl">Active delinquencies</h1>
+          <p className="mt-1 max-w-xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+            Cure windows and breach-of-peace guardrails, counted on this device.
+            {" "}
             {workspace?.stateCode} worksheet
             {slots == null ? " · unlimited open files" : ` · ${slots} of ${FREE_OPEN_ACCOUNT_LIMIT} open slots left`}
           </p>
         </div>
-        <Link to="/app/accounts/new" className="inline-flex min-h-11 items-center rounded-full bg-ink px-4 text-sm font-semibold text-bone dark:bg-paper dark:text-ink">
+        <Link to="/app/accounts/new" className="cta">
           New file
         </Link>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {metrics.map((metric) => (
+          <article key={metric.label} className="panel flex items-center justify-between px-4 py-3">
+            <div>
+              <p className="text-[11px] font-semibold tracking-[0.14em] text-zinc-500 uppercase dark:text-zinc-400">{metric.label}</p>
+              <p className="mt-1 font-display text-3xl">{metric.value}</p>
+            </div>
+            <StatusDot className={metric.dot} />
+          </article>
+        ))}
       </div>
       {!workspace?.counselConfirmedAt ? (
         <Banner tone="warn">
@@ -80,7 +102,7 @@ export default function Dashboard() {
             key={item.id}
             type="button"
             aria-pressed={filter === item.id}
-            className={`shrink-0 rounded-full px-3 py-2 text-sm font-semibold ${filter === item.id ? "bg-ink text-bone dark:bg-paper dark:text-ink" : "bg-white text-ink-soft dark:bg-night-2 dark:text-paper/70"}`}
+            className={filter === item.id ? "chip-on" : "chip"}
             onClick={() => setFilter(item.id)}
           >
             {item.label}
@@ -95,7 +117,7 @@ export default function Dashboard() {
           </p>
           {sampleError ? <p className="mt-3 text-sm font-semibold text-rose">{sampleError}</p> : null}
           <div className="mt-4 flex flex-wrap gap-2">
-            <Link to="/app/accounts/new" className="inline-flex min-h-11 items-center rounded-full bg-ink px-4 text-sm font-semibold text-bone dark:bg-paper dark:text-ink">
+            <Link to="/app/accounts/new" className="cta">
               New file
             </Link>
             <Button
@@ -115,11 +137,11 @@ export default function Dashboard() {
       <div className="grid gap-3">
         {visible.map(({ account, stage }) => (
           <Link key={account.id} to={hrefFor(stage.stage, account.id)} className="block">
-            <Card className="hover:border-ink dark:hover:border-amber-2">
+            <Card className="transition hover:border-cyan-400/60 dark:hover:shadow-cyan-400/10">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <h2 className="text-lg font-semibold">{account.borrowerName}</h2>
-                  <p className="text-sm text-ink-soft dark:text-paper/70">
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400">
                     {account.vehicleYear} {account.vehicleMake} {account.vehicleModel} · {account.vin}
                   </p>
                 </div>
@@ -158,4 +180,3 @@ function hrefFor(stage: Stage, id: string): string {
   if (stage === "recovered" || stage === "redeemed" || stage === "disposed") return `/app/accounts/${id}/post-repo`
   return `/app/accounts/${id}`
 }
-
