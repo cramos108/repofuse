@@ -68,7 +68,7 @@ export default function Landing() {
                 Local-first compliance
               </span>
               <span className="badge">
-                <StatusDot className="text-violet-300" />
+                <StatusDot className="text-sky-400" />
                 UCC Article 9
               </span>
             </div>
@@ -98,8 +98,8 @@ export default function Landing() {
 
         <section className="grid gap-3 sm:grid-cols-3">
           {[
-            ["01", "Notice sent", "Certified mail, tracking number, and the send date land in the audit.", "text-indigo-300"],
-            ["02", "Cure period active", "The armed state window counts down on the device.", "text-violet-300"],
+            ["01", "Notice sent", "Certified mail, tracking number, and the send date land in the audit.", "text-sky-400"],
+            ["02", "Cure period active", "The armed state window counts down on the device.", "text-cyan-300"],
             ["03", "Ready for recovery", "Guardrails have to be acknowledged. Skipping them keeps the file closed.", "text-cyan-300"],
           ].map(([step, title, body, dot]) => (
             <article key={step} className="panel p-5">
@@ -162,7 +162,7 @@ export default function Landing() {
               IndexedDB
             </span>
             <span className="badge">
-              <StatusDot className="text-violet-300" />
+              <StatusDot className="text-sky-400" />
               No borrower upload
             </span>
           </div>
@@ -278,7 +278,7 @@ function ExamplePhone() {
         </div>
         <div className="mt-4 grid grid-cols-3 gap-2 text-center text-[11px] font-semibold">
           <span className="rounded-md border border-zinc-800 bg-zinc-950 py-2 text-zinc-400">Notice</span>
-          <span className="rounded-md bg-gradient-to-r from-indigo-500 via-violet-500 to-cyan-400 py-2 text-zinc-950">Cure</span>
+          <span className="rounded-md bg-cyan-400 py-2 text-zinc-950">Cure</span>
           <span className="rounded-md border border-zinc-800 bg-zinc-950 py-2 text-zinc-500">Ready</span>
         </div>
       </div>

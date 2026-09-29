@@ -12,7 +12,7 @@ export function Button({
 }) {
   const styles = {
     primary:
-      "rounded-lg bg-gradient-to-r from-indigo-500 via-violet-500 to-cyan-400 text-zinc-950 shadow-lg shadow-indigo-500/30 hover:brightness-110",
+      "rounded-lg bg-cyan-400 text-zinc-950 shadow-lg shadow-cyan-500/40 hover:bg-cyan-300",
     secondary:
       "rounded-lg border border-zinc-300 bg-white text-zinc-950 hover:border-cyan-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-50 dark:hover:border-cyan-400/70",
     ghost: "rounded-lg text-zinc-700 hover:bg-zinc-200/80 dark:text-zinc-200 dark:hover:bg-zinc-800",
@@ -75,7 +75,7 @@ export function Card({
 export function Banner({ tone = "info", children }: { tone?: "info" | "warn" | "good"; children: ReactNode }) {
   const styles = {
     info: "border-zinc-200 bg-zinc-100 text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100",
-    warn: "border-violet-400/40 bg-violet-500/10 text-zinc-900 dark:text-zinc-100",
+    warn: "border-sky-500/40 bg-sky-500/10 text-zinc-900 dark:text-zinc-100",
     good: "border-cyan-400/40 bg-cyan-400/10 text-zinc-900 dark:text-zinc-100",
   }[tone]
   return <div className={`rounded-lg border px-4 py-3 text-sm leading-6 ${styles}`}>{children}</div>
@@ -83,7 +83,7 @@ export function Banner({ tone = "info", children }: { tone?: "info" | "warn" | "
 
 const stageDot: Record<Stage, string> = {
   notice_due: "text-rose-400",
-  cure_active: "text-violet-300",
+  cure_active: "text-cyan-300",
   guardrails_open: "text-cyan-300",
   ready_for_recovery: "text-emerald-400",
   recovered: "text-zinc-300",
@@ -120,7 +120,7 @@ export function ThemeToggle() {
           type="button"
           aria-label={option.label}
           aria-pressed={choice === option.id}
-          className={`inline-flex h-9 w-9 items-center justify-center rounded-md ${choice === option.id ? "bg-gradient-to-r from-indigo-500 via-violet-500 to-cyan-400 text-zinc-950" : "text-zinc-500 dark:text-zinc-400"}`}
+          className={`inline-flex h-9 w-9 items-center justify-center rounded-md ${choice === option.id ? "bg-cyan-400 text-zinc-950" : "text-zinc-500 dark:text-zinc-400"}`}
           onClick={() => setChoice(option.id)}
         >
           {option.icon}

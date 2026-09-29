@@ -9,7 +9,7 @@
   --color-bone-2: #e4e4e7;
   --color-ink: #09090b;
   --color-ink-soft: #52525b;
-  --color-amber: #6366f1;
+  --color-amber: #0ea5e9;
   --color-amber-2: #22d3ee;
   --color-pine: #059669;
   --color-rose: #e11d48;
@@ -29,8 +29,8 @@
     margin: 0;
     min-height: 100dvh;
     background:
-      radial-gradient(ellipse 70% 36% at 12% -8%, rgba(99, 102, 241, 0.16), transparent 55%),
-      radial-gradient(ellipse 50% 30% at 90% -10%, rgba(34, 211, 238, 0.12), transparent 50%),
+      radial-gradient(ellipse 70% 36% at 12% -8%, rgba(2, 132, 199, 0.16), transparent 55%),
+      radial-gradient(ellipse 50% 30% at 90% -10%, rgba(34, 211, 238, 0.16), transparent 50%),
       var(--color-bone);
     color: var(--color-ink);
     font-family: var(--font-sans);
@@ -38,8 +38,8 @@
 
   .dark body {
     background:
-      radial-gradient(ellipse 70% 36% at 12% -8%, rgba(99, 102, 241, 0.28), transparent 55%),
-      radial-gradient(ellipse 48% 32% at 92% -6%, rgba(34, 211, 238, 0.16), transparent 52%),
+      radial-gradient(ellipse 70% 36% at 12% -8%, rgba(2, 132, 199, 0.28), transparent 55%),
+      radial-gradient(ellipse 48% 32% at 92% -6%, rgba(34, 211, 238, 0.2), transparent 52%),
       #09090b;
     color: #fafafa;
   }
@@ -60,7 +60,7 @@
   }
 
   .cta {
-    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-indigo-500 via-violet-500 to-cyan-400 px-4 text-sm font-semibold text-zinc-950 shadow-lg shadow-indigo-500/30 transition hover:brightness-110;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-cyan-400 px-4 text-sm font-semibold text-zinc-950 shadow-lg shadow-cyan-500/40 transition hover:bg-cyan-300;
   }
 
   .cta-lg {
@@ -76,7 +76,7 @@
   }
 
   .grad-text {
-    @apply bg-gradient-to-r from-indigo-400 via-violet-300 to-cyan-300 bg-clip-text text-transparent;
+    @apply bg-gradient-to-r from-blue-500 via-sky-400 to-cyan-300 bg-clip-text text-transparent;
   }
 
   .panel {
@@ -88,7 +88,7 @@
   }
 
   .chip-on {
-    @apply shrink-0 rounded-lg bg-gradient-to-r from-indigo-500 via-violet-500 to-cyan-400 px-3 py-2 text-sm font-semibold text-zinc-950 shadow-md shadow-cyan-500/30;
+    @apply shrink-0 rounded-lg bg-gradient-to-r from-sky-500 to-cyan-400 px-3 py-2 text-sm font-semibold text-zinc-950 shadow-md shadow-cyan-500/30;
   }
 }
 

@@ -49,7 +49,7 @@ export default function Dashboard() {
   })
   const slots = workspace ? remainingOpenSlots(store.accounts, workspace.tier) : null
   const metrics = [
-    { label: "Cure active", value: rows.filter((row) => row.stage.stage === "cure_active").length, dot: "text-violet-300" },
+    { label: "Cure active", value: rows.filter((row) => row.stage.stage === "cure_active").length, dot: "text-cyan-300" },
     { label: "Guardrails", value: rows.filter((row) => row.stage.stage === "guardrails_open").length, dot: "text-cyan-300" },
     { label: "Ready", value: rows.filter((row) => row.stage.stage === "ready_for_recovery").length, dot: "text-emerald-400" },
   ]
