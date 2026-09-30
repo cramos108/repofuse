@@ -10,7 +10,8 @@ import {
 } from "react"
 import { findItem } from "../domain/checklists"
 import { AccountLimitError, remainingOpenSlots } from "../domain/limits"
-import { assertAccess } from "../domain/roles"
+import { buildFieldSnapshot, decodeFieldReturn, fieldLinkUrl } from "../domain/fieldLink"
+import { assertAccess, roleOf } from "../domain/roles"
 import { getProfile } from "../domain/profiles"
 import { computeStage, earliestDispositionOn } from "../domain/stage"
 import type {
@@ -20,6 +21,7 @@ import type {
   ContactChannel,
   ContactRecord,
   ExpenseLine,
+  FieldGrant,
   InventoryItem,
   LotSnapshot,
   NoticeKind,
@@ -41,6 +43,7 @@ import {
   putCheck,
   putContact,
   putExpense,
+  putFieldGrant,
   putInventory,
   putNotice,
   putSpot,
@@ -63,6 +66,7 @@ const EMPTY: LotData = {
   spots: [],
   inventory: [],
   expenses: [],
+  fieldGrants: [],
 }
 
 export interface SetupInput {
@@ -155,6 +159,10 @@ interface StoreValue extends LotData {
   downloadRestore: () => Promise<void>
   restoreFromFile: (file: File) => Promise<void>
   eraseEverything: () => Promise<void>
+  createFieldLink: (accountId: string, agencyLabel: string) => Promise<string>
+  revokeFieldLink: (id: string) => Promise<void>
+  applyFieldStatus: (token: string, status: "secured" | "unable", note: string) => Promise<void>
+  applyFieldReturn: (code: string) => Promise<void>
 }
 
 const StoreContext = createContext<StoreValue | null>(null)
@@ -302,7 +310,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         fetchOwnMembership().catch(() => null),
       ])
       const nextTier = membership ? "pro" : tier
-      const nextRole = membership?.role ?? remote?.operatorRole ?? current.operatorRole ?? "collections"
+      const nextRole = roleOf({ operatorRole: membership?.role ?? remote?.operatorRole ?? current.operatorRole })
       setSeat(membership ? "member" : "owner")
       if (current.tier !== nextTier || current.proEmail !== active.email || current.operatorRole !== nextRole) {
         await saveWorkspace({
@@ -764,6 +772,98 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     await reload()
   }, [makeEvent, reload, requireWorkspace])
 
+  const writeFieldStatus = useCallback(
+    async (token: string, status: "secured" | "unable", note: string, at: string) => {
+      const grant = lotRef.current.fieldGrants.find((item) => item.id === token)
+      if (!grant) throw new Error("This device has no field link with that code.")
+      if (grant.revokedAt) throw new Error("That field link was revoked.")
+      const account = requireAccount(grant.accountId)
+      const next: FieldGrant = {
+        ...grant,
+        status,
+        statusAt: at,
+        statusNote: note.trim().slice(0, 280),
+      }
+      const summary =
+        status === "secured"
+          ? `Field agent marked the vehicle secured${next.statusNote ? `: ${next.statusNote}` : "."}`
+          : `Field agent could not secure the vehicle${next.statusNote ? `: ${next.statusNote}` : "."}`
+      await putFieldGrant(next, stampAccount(account), makeEvent(account.id, "recovery", summary))
+      await reload()
+    },
+    [makeEvent, reload, requireAccount, stampAccount],
+  )
+
+  const createFieldLink = useCallback(
+    async (accountId: string, agencyLabel: string) => {
+      const workspace = requireWorkspace()
+      gate(workspace, "field")
+      const account = requireAccount(accountId)
+      const label = agencyLabel.trim()
+      if (label.length < 2) throw new Error("Name the agency or agent on this link.")
+      const grant: FieldGrant = {
+        id: uid("fld"),
+        accountId,
+        createdAt: new Date().toISOString(),
+        revokedAt: null,
+        agencyLabel: label,
+        status: "assigned",
+        statusAt: null,
+        statusNote: "",
+      }
+      await putFieldGrant(
+        grant,
+        stampAccount(account),
+        makeEvent(accountId, "recovery", `Field link created for ${label}.`),
+      )
+      const snapshot = buildFieldSnapshot({
+        token: grant.id,
+        dealership: workspace.dealershipName,
+        agency: label,
+        account,
+        spots: lotRef.current.spots.filter((spot) => spot.accountId === accountId),
+        inventory: lotRef.current.inventory.filter((item) => item.accountId === accountId),
+        status: "assigned",
+      })
+      await reload()
+      return fieldLinkUrl(window.location.origin, snapshot)
+    },
+    [gate, makeEvent, reload, requireAccount, requireWorkspace, stampAccount],
+  )
+
+  const revokeFieldLink = useCallback(
+    async (id: string) => {
+      const workspace = requireWorkspace()
+      gate(workspace, "field")
+      const grant = lotRef.current.fieldGrants.find((item) => item.id === id)
+      if (!grant) throw new Error("That field link is not on this device.")
+      const account = requireAccount(grant.accountId)
+      await putFieldGrant(
+        { ...grant, revokedAt: new Date().toISOString() },
+        stampAccount(account),
+        makeEvent(account.id, "recovery", `Field link revoked for ${grant.agencyLabel}.`),
+      )
+      await reload()
+    },
+    [gate, makeEvent, reload, requireAccount, requireWorkspace, stampAccount],
+  )
+
+  const applyFieldStatus = useCallback(
+    async (token: string, status: "secured" | "unable", note: string) => {
+      await writeFieldStatus(token, status, note, new Date().toISOString())
+    },
+    [writeFieldStatus],
+  )
+
+  const applyFieldReturn = useCallback(
+    async (code: string) => {
+      const parsed = decodeFieldReturn(code)
+      if (!parsed) throw new Error("That is not a field update code.")
+      await writeFieldStatus(parsed.token, parsed.status, parsed.note, parsed.at || new Date().toISOString())
+    },
+    [writeFieldStatus],
+  )
+
   const clearSample = useCallback(async () => {
     const ids = lotRef.current.accounts.filter((account) => account.sample).map((account) => account.id)
     for (const id of ids) await deleteAccountGraph(id)
@@ -835,6 +935,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       downloadRestore,
       restoreFromFile,
       eraseEverything,
+      createFieldLink,
+      revokeFieldLink,
+      applyFieldStatus,
+      applyFieldReturn,
     }),
     [
       lot,
@@ -872,6 +976,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       downloadRestore,
       restoreFromFile,
       eraseEverything,
+      createFieldLink,
+      revokeFieldLink,
+      applyFieldStatus,
+      applyFieldReturn,
     ],
   )
 

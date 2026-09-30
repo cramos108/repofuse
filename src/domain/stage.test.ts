@@ -19,7 +19,7 @@ function workspace(partial: Partial<Workspace> = {}): Workspace {
     counselConfirmedAt: null,
     counselConfirmedBy: "",
     operatorName: "Casey Lot",
-    operatorRole: "collections",
+    operatorRole: "specialist",
     tier: "free",
     proEmail: null,
     createdAt: "2026-01-01T00:00:00.000Z",

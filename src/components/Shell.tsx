@@ -11,11 +11,7 @@ const link = ({ isActive }: { isActive: boolean }) =>
 export function Shell() {
   const { workspace, seat } = useStore()
   const access = workspace ? accessFor(workspace, seat) : null
-  const tierLabel = !workspace
-    ? ""
-    : access?.ledger && access.field
-      ? "Pro · both roles"
-      : `${workspace.tier === "pro" ? "Pro" : "Free"} · ${roleLabel(workspace.operatorRole)}`
+  const tierLabel = workspace ? `${workspace.tier === "pro" ? "Pro" : "Free"} · ${roleLabel(workspace.operatorRole)}` : ""
   return (
     <div className="min-h-dvh">
       <a href="#lot-main" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-cyan-400 focus:px-3 focus:py-2 focus:text-zinc-950">

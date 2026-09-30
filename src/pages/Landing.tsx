@@ -13,15 +13,15 @@ const freeFeatures = [
   "Post-repo redemption and deficiency worksheet",
   "PDF packet generated on this device",
   "20 open accounts",
-  "One signed-in user",
-  "One role: collections or field",
+  "One signed-in collections specialist",
+  "Agency field link for one vehicle, no agency account",
 ]
 
 const proFeatures = [
   "Everything in Free",
   "Unlimited open accounts",
-  "Collections and field roles on the same dealership",
-  "Teammate emails and roles — the lot file is not",
+  "Collections manager oversight",
+  "Collector teammate emails and roles — the lot file is not",
   "License tier checked in Supabase",
   "PDF without the Free banner. The disclaimer stays.",
 ]
@@ -91,29 +91,29 @@ export default function Landing() {
               </button>
             </div>
             <p className="mt-4 max-w-md text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-              Both tiers sign in. Free is one person and one role. Pro adds the other role and
-              teammates. The lot file still stays on this device. This build does not charge a card.
+              Collections staff sign in. Free is one specialist. Pro adds a manager and collector
+              teammates. Agencies open a field link with no account. The lot file stays on this device. This build does not charge a card.
             </p>
           </div>
           <div className="grid gap-3">
             <article className="panel p-5">
               <p className="badge">
                 <StatusDot />
-                Collections
+                Specialist
               </p>
-              <h2 className="mt-3 text-lg font-semibold">New delinquencies and the ledger</h2>
+              <h2 className="mt-3 text-lg font-semibold">One signed-in collector</h2>
               <p className="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-                Notices, contacts, and cure notes. A Free collections seat does not log field recovery.
+                New delinquencies, ledger notes, and a field link for one vehicle. The agency does not get a login.
               </p>
             </article>
             <article className="panel p-5">
               <p className="badge">
                 <StatusDot className="text-sky-400" />
-                Field
+                Manager
               </p>
-              <h2 className="mt-3 text-lg font-semibold">Recovery logs and property holds</h2>
+              <h2 className="mt-3 text-lg font-semibold">Pro oversight</h2>
               <p className="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-                Active files, status, personal property, and the hold countdown. A Free field seat does not open new files.
+                Add collector teammates. Each device keeps its own lot file. Supabase stores the email and role only.
               </p>
             </article>
           </div>
@@ -161,7 +161,7 @@ export default function Landing() {
             <PriceCard
               name="Free"
               price="$0"
-              detail="One signed-in user. One role."
+              detail="One signed-in collector."
               features={freeFeatures}
               action="Continue Free"
               onClick={() => enter("free")}
@@ -169,7 +169,7 @@ export default function Landing() {
             <PriceCard
               name="Pro"
               price="$49.99/mo"
-              detail="Multi-user. Collections and field."
+              detail="Manager and collector teammates."
               features={proFeatures}
               action="Go Pro"
               emphasized

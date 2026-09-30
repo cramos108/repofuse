@@ -1,10 +1,12 @@
 import { deleteDB, openDB, type DBSchema, type IDBPDatabase } from "idb"
+import { roleOf } from "../domain/roles"
 import type {
   Account,
   AuditEvent,
   ChecklistAck,
   ContactRecord,
   ExpenseLine,
+  FieldGrant,
   InventoryItem,
   LotSnapshot,
   NoticeRecord,
@@ -26,6 +28,7 @@ interface RepoDB extends DBSchema {
   photos: { key: string; value: PhotoRecord }
   inventory: { key: string; value: InventoryItem }
   expenses: { key: string; value: ExpenseLine }
+  fieldGrants: { key: string; value: FieldGrant }
 }
 
 const GRAPH = [
@@ -37,6 +40,7 @@ const GRAPH = [
   "photos",
   "inventory",
   "expenses",
+  "fieldGrants",
 ] as const
 
 export interface LotData {
@@ -49,13 +53,14 @@ export interface LotData {
   spots: SpotRecord[]
   inventory: InventoryItem[]
   expenses: ExpenseLine[]
+  fieldGrants: FieldGrant[]
 }
 
 let dbPromise: Promise<IDBPDatabase<RepoDB>> | null = null
 
 export function getDb(): Promise<IDBPDatabase<RepoDB>> {
   if (!dbPromise) {
-    dbPromise = openDB<RepoDB>("repofuse", 1, {
+    dbPromise = openDB<RepoDB>("repofuse", 2, {
       upgrade(db) {
         if (!db.objectStoreNames.contains("workspace")) db.createObjectStore("workspace")
         const keyed = ["accounts", ...GRAPH] as const
@@ -79,7 +84,7 @@ export function getDb(): Promise<IDBPDatabase<RepoDB>> {
 
 export async function loadLot(): Promise<LotData> {
   const db = await getDb()
-  const [workspace, accounts, events, notices, contacts, checks, spots, inventory, expenses] =
+  const [workspace, accounts, events, notices, contacts, checks, spots, inventory, expenses, fieldGrants] =
     await Promise.all([
       db.get("workspace", "workspace"),
       db.getAll("accounts"),
@@ -90,11 +95,10 @@ export async function loadLot(): Promise<LotData> {
       db.getAll("spots"),
       db.getAll("inventory"),
       db.getAll("expenses"),
+      db.getAll("fieldGrants"),
     ])
   return {
-    workspace: workspace
-      ? { ...workspace, operatorRole: workspace.operatorRole === "field" ? "field" : "collections" }
-      : null,
+    workspace: workspace ? { ...workspace, operatorRole: roleOf(workspace) } : null,
     accounts: accounts.map((account) => ({
       ...account,
       propertyHoldStartsOn: account.propertyHoldStartsOn ?? null,
@@ -107,6 +111,14 @@ export async function loadLot(): Promise<LotData> {
     spots,
     inventory,
     expenses,
+    fieldGrants: fieldGrants.map((grant) => ({
+      ...grant,
+      agencyLabel: grant.agencyLabel ?? "",
+      status: grant.status === "secured" || grant.status === "unable" ? grant.status : "assigned",
+      statusAt: grant.statusAt ?? null,
+      statusNote: grant.statusNote ?? "",
+      revokedAt: grant.revokedAt ?? null,
+    })),
   }
 }
 
@@ -174,6 +186,15 @@ export async function putInventory(item: InventoryItem, account: Account, event:
   await tx.done
 }
 
+export async function putFieldGrant(grant: FieldGrant, account: Account, event: AuditEvent): Promise<void> {
+  const db = await getDb()
+  const tx = db.transaction(["fieldGrants", "accounts", "events"], "readwrite")
+  await tx.objectStore("fieldGrants").put(grant)
+  await tx.objectStore("accounts").put(account)
+  await tx.objectStore("events").put(event)
+  await tx.done
+}
+
 export async function putExpense(expense: ExpenseLine, account: Account, event: AuditEvent): Promise<void> {
   const db = await getDb()
   const tx = db.transaction(["expenses", "accounts", "events"], "readwrite")
@@ -235,10 +256,11 @@ export async function exportSnapshot(): Promise<LotSnapshot> {
   }
   return {
     format: "repofuse-lot",
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
     workspace: lot.workspace,
     accounts: lot.accounts,
+    fieldGrants: lot.fieldGrants,
     notices: lot.notices,
     contacts: lot.contacts,
     checks: lot.checks,
@@ -251,7 +273,7 @@ export async function exportSnapshot(): Promise<LotSnapshot> {
 }
 
 export async function replaceLot(snapshot: LotSnapshot): Promise<void> {
-  if (snapshot.format !== "repofuse-lot" || snapshot.version !== 1) {
+  if (snapshot.format !== "repofuse-lot" || (snapshot.version !== 1 && snapshot.version !== 2)) {
     throw new Error("That file is not a RepoFuse lot restore.")
   }
   if (!snapshot.workspace || snapshot.workspace.id !== "workspace") {
@@ -271,6 +293,7 @@ export async function replaceLot(snapshot: LotSnapshot): Promise<void> {
   for (const row of snapshot.spots) await tx.objectStore("spots").put(row)
   for (const row of snapshot.inventory) await tx.objectStore("inventory").put(row)
   for (const row of snapshot.expenses) await tx.objectStore("expenses").put(row)
+  for (const row of snapshot.fieldGrants ?? []) await tx.objectStore("fieldGrants").put(row)
   for (const photo of snapshot.photos) {
     const record: PhotoRecord = {
       id: photo.id,

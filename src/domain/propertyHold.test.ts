@@ -40,11 +40,9 @@ describe("property hold", () => {
 })
 
 describe("roles", () => {
-  it("keeps Free to one role, lets a Pro owner use both, and keeps a teammate on their role", () => {
-    expect(accessFor({ tier: "free", operatorRole: "collections" })).toMatchObject({ ledger: true, field: false, team: false })
-    expect(accessFor({ tier: "free", operatorRole: "field" })).toMatchObject({ ledger: false, field: true, team: false })
-    expect(accessFor({ tier: "pro", operatorRole: "field" })).toMatchObject({ ledger: true, field: true, team: true })
-    expect(accessFor({ tier: "pro", operatorRole: "field" }, "member")).toMatchObject({ ledger: false, field: true, team: false })
-    expect(accessFor({ tier: "pro", operatorRole: "collections" }, "member")).toMatchObject({ ledger: true, field: false, team: false })
+  it("lets internal staff write the lot and reserves teammate oversight for a Pro manager", () => {
+    expect(accessFor({ tier: "free", operatorRole: "specialist" })).toMatchObject({ ledger: true, field: true, team: false })
+    expect(accessFor({ tier: "pro", operatorRole: "manager" })).toMatchObject({ team: true, oversight: true })
+    expect(accessFor({ tier: "pro", operatorRole: "specialist" }, "member")).toMatchObject({ team: false, ledger: true })
   })
 })

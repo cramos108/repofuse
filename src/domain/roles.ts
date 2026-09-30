@@ -3,40 +3,41 @@ import type { OperatorRole, Tier, Workspace } from "./types"
 export type { OperatorRole }
 export type Seat = "owner" | "member"
 
-export function roleOf(workspace: { operatorRole?: OperatorRole | null }): OperatorRole {
-  return workspace.operatorRole === "field" ? "field" : "collections"
+/** Legacy field and collections values stay readable. External agencies use a field link, not a seat. */
+export function roleOf(workspace: { operatorRole?: string | null }): OperatorRole {
+  return workspace.operatorRole === "manager" ? "manager" : "specialist"
 }
 
-export function roleLabel(role: OperatorRole | null | undefined): string {
-  return role === "field" ? "Field" : "Collections"
+export function roleLabel(role: OperatorRole | string | null | undefined): string {
+  return roleOf({ operatorRole: role }) === "manager" ? "Manager" : "Specialist"
 }
 
-export function roleTitle(role: OperatorRole | null | undefined): string {
-  return role === "field" ? "Repo Specialist / Field Agent" : "Collections Manager / Specialist"
+export function roleTitle(role: OperatorRole | string | null | undefined): string {
+  return roleOf({ operatorRole: role }) === "manager" ? "Collections Manager" : "Collections Specialist"
 }
 
 export function accessFor(
-  workspace: { operatorRole?: OperatorRole | null; tier: Tier },
+  workspace: { operatorRole?: string | null; tier: Tier },
   seat: Seat = "owner",
 ) {
   const role = roleOf(workspace)
   const pro = workspace.tier === "pro"
-  const both = pro && seat === "owner"
   return {
     role,
     multi: pro,
-    ledger: both || role === "collections",
-    field: both || role === "field",
-    team: pro && seat === "owner",
+    ledger: true,
+    field: true,
+    team: pro && seat === "owner" && role === "manager",
+    oversight: pro && role === "manager",
   }
 }
 
 export function assertAccess(workspace: Workspace, kind: "ledger" | "field", seat: Seat = "owner"): void {
   const access = accessFor(workspace, seat)
   if (kind === "ledger" && !access.ledger) {
-    throw new Error("This seat is the field role. New delinquencies and ledger notes need the collections role. A Pro owner can use both.")
+    throw new Error("New delinquencies and ledger notes need a signed-in collections seat.")
   }
   if (kind === "field" && !access.field) {
-    throw new Error("This seat is the collections role. Recovery and personal-property logs need the field role. A Pro owner can use both.")
+    throw new Error("Recovery logs need a signed-in collections seat. Outside agencies use a field link.")
   }
 }

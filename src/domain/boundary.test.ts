@@ -8,7 +8,7 @@ import type { Account, Workspace } from "./types"
 describe("cloud boundary", () => {
   it("sends dealership name, state, and role", () => {
     expect(
-      Object.keys(settingsPayload({ dealershipName: "North Lot", stateCode: "TX", operatorRole: "collections" })).sort(),
+      Object.keys(settingsPayload({ dealershipName: "North Lot", stateCode: "TX", operatorRole: "specialist" })).sort(),
     ).toEqual(["dealership_name", "operator_role", "state_code"])
   })
 
@@ -34,7 +34,7 @@ describe("cloud boundary", () => {
       counselConfirmedAt: null,
       counselConfirmedBy: "",
       operatorName: "Casey",
-      operatorRole: "collections",
+      operatorRole: "specialist",
       tier: "free",
       proEmail: null,
       createdAt: "2026-01-01T00:00:00.000Z",

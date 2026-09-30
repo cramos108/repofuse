@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react"
 import { useParams } from "react-router-dom"
+import { FieldLinkPanel } from "../components/FieldLinkPanel"
 import { Banner, Button, Card, Field, TextInput, Area, errorText } from "../components/ui"
 import { formatStamp } from "../domain/dates"
 import { accessFor } from "../domain/roles"
@@ -73,6 +74,7 @@ export default function FieldPage() {
 
   return (
     <div className="space-y-4">
+      <FieldLinkPanel accountId={account.id} />
       <Card>
         <h2 className="text-lg font-semibold">Field spot</h2>
         <p className="mt-1 text-sm leading-6 text-ink-soft dark:text-paper/70">

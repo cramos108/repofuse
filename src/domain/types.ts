@@ -1,6 +1,19 @@
 export type Tier = "free" | "pro"
 
-export type OperatorRole = "collections" | "field"
+export type OperatorRole = "specialist" | "manager"
+
+export type FieldAgentStatus = "assigned" | "secured" | "unable"
+
+export interface FieldGrant {
+  id: string
+  accountId: string
+  createdAt: string
+  revokedAt: string | null
+  agencyLabel: string
+  status: FieldAgentStatus
+  statusAt: string | null
+  statusNote: string
+}
 
 export type NoticeKind =
   | "right_to_cure"
@@ -176,10 +189,11 @@ export interface ExpenseLine {
 
 export interface LotSnapshot {
   format: "repofuse-lot"
-  version: 1
+  version: 1 | 2
   exportedAt: string
   workspace: Workspace
   accounts: Account[]
+  fieldGrants?: FieldGrant[]
   notices: NoticeRecord[]
   contacts: ContactRecord[]
   checks: ChecklistAck[]

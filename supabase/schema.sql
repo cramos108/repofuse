@@ -12,21 +12,38 @@ create table if not exists public.workspace_settings (
   user_id uuid primary key references auth.users (id) on delete cascade,
   dealership_name text not null default '',
   state_code text not null default '',
-  operator_role text not null default 'collections' check (operator_role in ('collections', 'field')),
+  operator_role text not null default 'specialist' check (operator_role in ('specialist', 'manager')),
   updated_at timestamptz not null default now()
 );
 
 alter table public.workspace_settings
-  add column if not exists operator_role text not null default 'collections';
+  add column if not exists operator_role text not null default 'specialist';
+
+alter table public.workspace_settings alter column operator_role set default 'specialist';
+alter table public.workspace_settings drop constraint if exists workspace_settings_operator_role_check;
+update public.workspace_settings
+  set operator_role = 'specialist'
+  where operator_role is distinct from 'manager';
+alter table public.workspace_settings
+  add constraint workspace_settings_operator_role_check
+  check (operator_role in ('specialist', 'manager'));
 
 create table if not exists public.team_members (
   id uuid primary key default gen_random_uuid(),
   owner_user_id uuid not null references auth.users (id) on delete cascade,
   email text not null,
-  role text not null check (role in ('collections', 'field')),
+  role text not null check (role in ('specialist', 'manager')),
   created_at timestamptz not null default now(),
   unique (owner_user_id, email)
 );
+
+alter table public.team_members drop constraint if exists team_members_role_check;
+update public.team_members
+  set role = 'specialist'
+  where role is distinct from 'manager';
+alter table public.team_members
+  add constraint team_members_role_check
+  check (role in ('specialist', 'manager'));
 
 alter table public.licenses enable row level security;
 alter table public.workspace_settings enable row level security;

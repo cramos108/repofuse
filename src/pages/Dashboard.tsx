@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react"
 import { Link } from "react-router-dom"
+import { FieldStatusFlag } from "../components/FieldLinkPanel"
 import { PropertyHoldFlag } from "../components/PropertyHoldFlag"
 import { Banner, Button, Card, StagePill, StatusDot, TextInput, usePageTitle } from "../components/ui"
 import { FREE_OPEN_ACCOUNT_LIMIT } from "../domain/copy"
 import { getProfile } from "../domain/profiles"
+import { fieldStatusFor } from "../domain/fieldLink"
 import { propertyHold } from "../domain/propertyHold"
 import { accessFor } from "../domain/roles"
 import { computeStage } from "../domain/stage"
@@ -183,6 +185,7 @@ export default function Dashboard() {
                     profileHoldDays: profile.personalPropertyHoldDays,
                   })}
                 />
+                <FieldStatusFlag status={fieldStatusFor(store.fieldGrants, account.id)} />
               </div>
             </Card>
           </Link>

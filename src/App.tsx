@@ -13,6 +13,7 @@ import FieldPage from "./pages/Field"
 import PostRepoPage from "./pages/PostRepo"
 import SettingsPage from "./pages/Settings"
 import SignInPage from "./pages/SignIn"
+import FieldLinkPage from "./pages/FieldLink"
 
 const PacketPage = lazy(() => import("./pages/Packet"))
 
@@ -21,6 +22,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/app/signin" element={<SignInPage />} />
+      <Route path="/go/:token" element={<FieldLinkPage />} />
       <Route path="/app" element={<RequireAccount />}>
       <Route path="setup" element={<SetupPage />} />
       <Route element={<RequireWorkspace />}>

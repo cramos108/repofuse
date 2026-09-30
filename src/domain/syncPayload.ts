@@ -1,4 +1,5 @@
 /** The only workspace fields a Pro browser may send. */
+import { roleOf } from "./roles"
 import type { OperatorRole } from "./types"
 
 export interface SettingsPayload {
@@ -15,6 +16,6 @@ export function settingsPayload(input: {
   return {
     dealership_name: input.dealershipName,
     state_code: input.stateCode,
-    operator_role: input.operatorRole === "field" ? "field" : "collections",
+    operator_role: roleOf({ operatorRole: input.operatorRole }),
   }
 }

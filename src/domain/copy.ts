@@ -2,7 +2,7 @@ export const PRIVACY_HEADING = "Lot data stays on this device"
 
 export const PRIVACY_BODY = `RepoFuse keeps borrower details, default logs, compliance checklists, timestamped audit entries, personal-property inventories, and photo records in this browser's on-device storage. Preferences and the theme live in localStorage. The lot file itself — accounts, notices, checklists, spots, inventories, and photos — lives in IndexedDB. None of that information is streamed or saved to a remote database.
 
-Every tier signs in. Supabase stores the dealer email, dealership name, state, role, license tier, and — on Pro — teammate emails and roles. It never receives a borrower, collection, or repo file.
+Internal collections staff sign in. Supabase stores the dealer email, dealership name, state, role, license tier, and — on Pro — teammate emails and roles. It never receives a borrower, collection, or repo file. An agency field link is a bearer address for one vehicle. The snapshot rides in the link fragment and is not uploaded.
 
 Clearing site data deletes the lot file on this device. Export a PDF packet or a restore file first. Pro is not a cloud backup, and it does not create cloud liability for the notes and logs in the lot file.`
 

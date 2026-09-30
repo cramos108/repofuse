@@ -4,7 +4,7 @@ import { ProfileCard } from "../components/ProfileCard"
 import { Banner, Button, Card, Field, SelectInput, TextInput, ThemeToggle, errorText, usePageTitle } from "../components/ui"
 import { LEGAL_DISCLAIMER } from "../domain/copy"
 import { PROFILES, getProfile } from "../domain/profiles"
-import { accessFor, roleTitle } from "../domain/roles"
+import { accessFor, roleOf, roleTitle } from "../domain/roles"
 import { settingsPayload } from "../domain/syncPayload"
 import type { OperatorRole } from "../domain/types"
 import {
@@ -28,10 +28,10 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null)
   const [eraseText, setEraseText] = useState("")
   const [remote, setRemote] = useState<{ dealershipName: string; stateCode: string; operatorRole: OperatorRole } | null>(null)
-  const [role, setRole] = useState<OperatorRole>(workspace?.operatorRole === "field" ? "field" : "collections")
+  const [role, setRole] = useState<OperatorRole>(roleOf(workspace ?? {}))
   const [team, setTeam] = useState<{ id: string; email: string; role: OperatorRole }[]>([])
   const [teamEmail, setTeamEmail] = useState("")
-  const [teamRole, setTeamRole] = useState<OperatorRole>("field")
+  const [teamRole, setTeamRole] = useState<OperatorRole>("specialist")
   const access = workspace ? accessFor(workspace, store.seat) : null
 
   useEffect(() => {
@@ -41,7 +41,7 @@ export default function SettingsPage() {
   }, [location.search])
 
   useEffect(() => {
-    setRole(workspace?.operatorRole === "field" ? "field" : "collections")
+    setRole(roleOf(workspace ?? {}))
   }, [workspace?.operatorRole])
 
   useEffect(() => {
@@ -88,11 +88,11 @@ export default function SettingsPage() {
       <Card>
         <h2 className="text-lg font-semibold">{roleTitle(access.role)}</h2>
         <p className="mt-1 text-sm leading-6">
-          {workspace.tier === "pro" && store.seat === "owner"
-            ? "Pro on this device can write the ledger and the field log. The role is the label stored with this account. Teammates stay on the role you assign."
+          {access?.oversight
+            ? "Pro manager oversight can add collector teammates. Each teammate signs in on their own device. The lot file is not sent."
             : store.seat === "member"
-              ? "This seat uses the role the dealership assigned. The lot file on this device is still local."
-              : "Free is one signed-in user and one role. Collections opens new files and ledger notes. Field logs recovery, guardrails, and personal property."}
+              ? "This seat is a signed-in collector. The lot file on this device stays here."
+              : "Free is one signed-in collections specialist. Switch to Collections Manager on Pro to add teammates. Outside agencies use a field link and do not sign in."}
         </p>
         {store.seat === "owner" ? (
           <form
@@ -114,8 +114,8 @@ export default function SettingsPage() {
           >
             <Field label="Role">
               <SelectInput value={role} onChange={(event) => setRole(event.target.value as OperatorRole)}>
-                <option value="collections">Collections Manager / Specialist</option>
-                <option value="field">Repo Specialist / Field Agent</option>
+                <option value="specialist">Collections Specialist</option>
+                <option value="manager">Collections Manager</option>
               </SelectInput>
             </Field>
             <Button type="submit" variant="secondary">Save role</Button>
@@ -145,8 +145,8 @@ export default function SettingsPage() {
             </Field>
             <Field label="Role">
               <SelectInput value={teamRole} onChange={(event) => setTeamRole(event.target.value as OperatorRole)}>
-                <option value="collections">Collections Manager / Specialist</option>
-                <option value="field">Repo Specialist / Field Agent</option>
+                <option value="specialist">Collections Specialist</option>
+                <option value="manager">Collections Manager</option>
               </SelectInput>
             </Field>
             <Button type="submit" disabled={!supabaseConfigured}>Add teammate</Button>
@@ -183,7 +183,7 @@ export default function SettingsPage() {
         <p className="mt-1 text-sm leading-6">
           Current tier: {workspace.tier === "pro" ? `Pro${workspace.proEmail ? ` · ${workspace.proEmail}` : ""}` : "Free"}
           {store.seat === "member" ? " · teammate seat" : ""}.
-          Free is one signed-in user and one role. Pro is the multi-user tier: this owner can write both roles, and teammate emails stay in Supabase. Borrower files are not part of either call.
+          Free is one signed-in collector. Pro is the multi-user tier: a Collections Manager can add collector teammates. Supabase stores those emails and roles. Borrower files are not part of either call.
         </p>
         {!supabaseConfigured ? (
           <Banner>

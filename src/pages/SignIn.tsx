@@ -41,7 +41,7 @@ export default function SignInPage() {
       <p className="badge mt-10">Dealer account</p>
       <h1 className="mt-3 font-display text-4xl">Sign in to open the lot.</h1>
       <p className="mt-3 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-        Free is one signed-in user and one role. Pro adds teammates and both the collections and field roles.
+        Collections specialists and managers sign in. Free is one collector. Pro lets a manager add collector teammates. A recovery agency uses a field link and does not sign in.
         {workspace?.setupComplete ? " The lot file already on this device stays here." : " Dealership name and role are saved after this link."}
       </p>
       {!supabaseConfigured ? (

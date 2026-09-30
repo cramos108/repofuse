@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js"
+import { roleOf } from "../domain/roles"
 import { settingsPayload } from "../domain/syncPayload"
 import type { OperatorRole, Tier } from "../domain/types"
 
@@ -86,7 +87,7 @@ export async function pullWorkspaceSettings(): Promise<{
   return {
     dealershipName: String(data.dealership_name ?? ""),
     stateCode: String(data.state_code ?? ""),
-    operatorRole: data.operator_role === "field" ? "field" : "collections",
+    operatorRole: roleOf({ operatorRole: String(data.operator_role ?? "") }),
   }
 }
 
@@ -101,8 +102,8 @@ export async function fetchOwnMembership(): Promise<{ role: OperatorRole } | nul
     .limit(1)
   if (error) throw error
   const role = data?.[0]?.role
-  if (role !== "collections" && role !== "field") return null
-  return { role }
+  if (role !== "manager" && role !== "specialist" && role !== "collections" && role !== "field") return null
+  return { role: roleOf({ operatorRole: String(role) }) }
 }
 
 export async function listTeamMembers(): Promise<{ id: string; email: string; role: OperatorRole }[]> {
@@ -117,7 +118,7 @@ export async function listTeamMembers(): Promise<{ id: string; email: string; ro
   return (data ?? []).map((row) => ({
     id: String(row.id),
     email: String(row.email),
-    role: row.role === "field" ? "field" : "collections",
+    role: roleOf({ operatorRole: String(row.role) }),
   }))
 }
 
