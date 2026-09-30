@@ -1,15 +1,19 @@
 import { useEffect, useState } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { ProfileCard } from "../components/ProfileCard"
-import { Banner, Button, Card, Field, TextInput, ThemeToggle, errorText, usePageTitle } from "../components/ui"
+import { Banner, Button, Card, Field, SelectInput, TextInput, ThemeToggle, errorText, usePageTitle } from "../components/ui"
 import { LEGAL_DISCLAIMER } from "../domain/copy"
 import { PROFILES, getProfile } from "../domain/profiles"
+import { accessFor, roleTitle } from "../domain/roles"
 import { settingsPayload } from "../domain/syncPayload"
+import type { OperatorRole } from "../domain/types"
 import {
+  addTeamMember,
+  listTeamMembers,
   pullWorkspaceSettings,
   pushWorkspaceSettings,
+  removeTeamMember,
   sendMagicLink,
-  signOutPro,
   supabaseConfigured,
 } from "../lib/supabase"
 import { useStore } from "../state/Store"
@@ -23,7 +27,12 @@ export default function SettingsPage() {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [eraseText, setEraseText] = useState("")
-  const [remote, setRemote] = useState<{ dealershipName: string; stateCode: string } | null>(null)
+  const [remote, setRemote] = useState<{ dealershipName: string; stateCode: string; operatorRole: OperatorRole } | null>(null)
+  const [role, setRole] = useState<OperatorRole>(workspace?.operatorRole === "field" ? "field" : "collections")
+  const [team, setTeam] = useState<{ id: string; email: string; role: OperatorRole }[]>([])
+  const [teamEmail, setTeamEmail] = useState("")
+  const [teamRole, setTeamRole] = useState<OperatorRole>("field")
+  const access = workspace ? accessFor(workspace, store.seat) : null
 
   useEffect(() => {
     if (new URLSearchParams(location.search).get("intent") === "pro") {
@@ -31,11 +40,21 @@ export default function SettingsPage() {
     }
   }, [location.search])
 
-  if (!workspace) return null
+  useEffect(() => {
+    setRole(workspace?.operatorRole === "field" ? "field" : "collections")
+  }, [workspace?.operatorRole])
+
+  useEffect(() => {
+    if (!access?.team || !supabaseConfigured) return
+    void listTeamMembers().then(setTeam).catch(() => setTeam([]))
+  }, [access?.team])
+
+  if (!workspace || !access) return null
   const profile = getProfile(workspace.stateCode)
   const payload = settingsPayload({
     dealershipName: workspace.dealershipName,
     stateCode: workspace.stateCode,
+    operatorRole: workspace.operatorRole,
   })
 
   async function run(action: () => Promise<string | void>) {
@@ -67,6 +86,92 @@ export default function SettingsPage() {
         </div>
       </Card>
       <Card>
+        <h2 className="text-lg font-semibold">{roleTitle(access.role)}</h2>
+        <p className="mt-1 text-sm leading-6">
+          {workspace.tier === "pro" && store.seat === "owner"
+            ? "Pro on this device can write the ledger and the field log. The role is the label stored with this account. Teammates stay on the role you assign."
+            : store.seat === "member"
+              ? "This seat uses the role the dealership assigned. The lot file on this device is still local."
+              : "Free is one signed-in user and one role. Collections opens new files and ledger notes. Field logs recovery, guardrails, and personal property."}
+        </p>
+        {store.seat === "owner" ? (
+          <form
+            className="mt-3 space-y-3"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void run(async () => {
+                await store.updateWorkspace({ operatorRole: role })
+                if (supabaseConfigured && store.session) {
+                  await pushWorkspaceSettings({
+                    dealershipName: workspace.dealershipName,
+                    stateCode: workspace.stateCode,
+                    operatorRole: role,
+                  })
+                }
+                return "Role saved on this device."
+              })
+            }}
+          >
+            <Field label="Role">
+              <SelectInput value={role} onChange={(event) => setRole(event.target.value as OperatorRole)}>
+                <option value="collections">Collections Manager / Specialist</option>
+                <option value="field">Repo Specialist / Field Agent</option>
+              </SelectInput>
+            </Field>
+            <Button type="submit" variant="secondary">Save role</Button>
+          </form>
+        ) : null}
+      </Card>
+      {access.team ? (
+        <Card>
+          <h2 className="text-lg font-semibold">Teammates</h2>
+          <p className="mt-1 text-sm leading-6">
+            Pro stores the email and role only. A teammate signs in on their own device. Their browser does not receive this lot file.
+          </p>
+          <form
+            className="mt-3 space-y-3"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void run(async () => {
+                await addTeamMember(teamEmail, teamRole)
+                setTeamEmail("")
+                setTeam(await listTeamMembers())
+                return "Teammate saved. Only the email and role were sent."
+              })
+            }}
+          >
+            <Field label="Work email">
+              <TextInput type="email" value={teamEmail} onChange={(event) => setTeamEmail(event.target.value)} required />
+            </Field>
+            <Field label="Role">
+              <SelectInput value={teamRole} onChange={(event) => setTeamRole(event.target.value as OperatorRole)}>
+                <option value="collections">Collections Manager / Specialist</option>
+                <option value="field">Repo Specialist / Field Agent</option>
+              </SelectInput>
+            </Field>
+            <Button type="submit" disabled={!supabaseConfigured}>Add teammate</Button>
+          </form>
+          <ul className="mt-4 space-y-2 text-sm">
+            {team.map((member) => (
+              <li key={member.id} className="flex flex-wrap items-center justify-between gap-2">
+                <span>{member.email} · {roleTitle(member.role)}</span>
+                <button
+                  type="button"
+                  className="font-semibold underline"
+                  onClick={() => void run(async () => {
+                    await removeTeamMember(member.id)
+                    setTeam(await listTeamMembers())
+                    return "Teammate removed."
+                  })}
+                >
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
+      <Card>
         <h2 className="text-lg font-semibold">Theme</h2>
         <p className="mt-1 text-sm">Saved in localStorage on this device.</p>
         <div className="mt-3">
@@ -76,8 +181,9 @@ export default function SettingsPage() {
       <Card id="pro">
         <h2 className="text-lg font-semibold">Pro · $49.99/mo</h2>
         <p className="mt-1 text-sm leading-6">
-          Current tier: {workspace.tier === "pro" ? `Pro${workspace.proEmail ? ` · ${workspace.proEmail}` : ""}` : "Free"}.
-          Sign-in proves identity. The license row says whether Pro is paid. Borrower files are not part of either call.
+          Current tier: {workspace.tier === "pro" ? `Pro${workspace.proEmail ? ` · ${workspace.proEmail}` : ""}` : "Free"}
+          {store.seat === "member" ? " · teammate seat" : ""}.
+          Free is one signed-in user and one role. Pro is the multi-user tier: this owner can write both roles, and teammate emails stay in Supabase. Borrower files are not part of either call.
         </p>
         {!supabaseConfigured ? (
           <Banner>
@@ -104,7 +210,7 @@ export default function SettingsPage() {
           <Button type="button" variant="secondary" onClick={() => void run(async () => store.refreshLicense())}>
             Refresh license
           </Button>
-          <Button type="button" variant="ghost" onClick={() => void run(async () => { await signOutPro(); await store.setTier("free", null); return "Signed out. Tier set back to Free on this device." })}>
+          <Button type="button" variant="ghost" onClick={() => void run(async () => { await store.signOut(); return "Signed out. This device is back on Free. The lot file is still here." })}>
             Sign out
           </Button>
         </div>
@@ -119,11 +225,12 @@ export default function SettingsPage() {
               await pushWorkspaceSettings({
                 dealershipName: workspace.dealershipName,
                 stateCode: workspace.stateCode,
+                operatorRole: workspace.operatorRole,
               })
-              return "Dealership name and state were sent. Nothing else."
+              return "Dealership name, state, and role were sent. Nothing from the lot file."
             })}
           >
-            Send these two fields
+            Send name, state, and role
           </Button>
           <Button
             type="button"
@@ -141,7 +248,7 @@ export default function SettingsPage() {
         </div>
         {remote ? (
           <div className="mt-3">
-            <p className="text-sm">Remote: {remote.dealershipName} · {remote.stateCode}</p>
+            <p className="text-sm">Remote: {remote.dealershipName} · {remote.stateCode} · {roleTitle(remote.operatorRole)}</p>
             <Button
               className="mt-2"
               type="button"
@@ -153,10 +260,11 @@ export default function SettingsPage() {
                 void store.updateWorkspace({
                   dealershipName: remote.dealershipName,
                   stateCode: remote.stateCode,
+                  operatorRole: remote.operatorRole,
                 })
               }}
             >
-              Apply remote name and state on this device
+              Apply remote name, state, and role on this device
             </Button>
           </div>
         ) : null}
@@ -190,7 +298,11 @@ export default function SettingsPage() {
       <Card>
         <h2 className="text-lg font-semibold">Sample buyers</h2>
         <div className="mt-3 flex flex-wrap gap-2">
-          <Button type="button" variant="secondary" onClick={() => void run(() => store.loadSample())}>Load sample lot</Button>
+          {access.ledger ? (
+            <Button type="button" variant="secondary" onClick={() => void run(() => store.loadSample())}>Load sample lot</Button>
+          ) : (
+            <p className="text-sm">Sample buyers need the collections role.</p>
+          )}
           <Button type="button" variant="ghost" onClick={() => void run(() => store.clearSample())}>Remove samples</Button>
         </div>
       </Card>

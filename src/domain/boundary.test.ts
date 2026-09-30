@@ -6,10 +6,10 @@ import { getProfile } from "./profiles"
 import type { Account, Workspace } from "./types"
 
 describe("cloud boundary", () => {
-  it("sends only dealership name and state", () => {
+  it("sends dealership name, state, and role", () => {
     expect(
-      Object.keys(settingsPayload({ dealershipName: "North Lot", stateCode: "TX" })).sort(),
-    ).toEqual(["dealership_name", "state_code"])
+      Object.keys(settingsPayload({ dealershipName: "North Lot", stateCode: "TX", operatorRole: "collections" })).sort(),
+    ).toEqual(["dealership_name", "operator_role", "state_code"])
   })
 
   it("keeps borrower tables out of the Supabase client", () => {
@@ -34,6 +34,7 @@ describe("cloud boundary", () => {
       counselConfirmedAt: null,
       counselConfirmedBy: "",
       operatorName: "Casey",
+      operatorRole: "collections",
       tier: "free",
       proEmail: null,
       createdAt: "2026-01-01T00:00:00.000Z",
@@ -59,6 +60,8 @@ describe("cloud boundary", () => {
       lastCureOn: null,
       closedAs: null,
       recoveredAt: null,
+      propertyHoldStartsOn: null,
+      propertyHoldDays: null,
       storageFacility: "",
       storageDailyCents: 0,
       storageAsOf: null,

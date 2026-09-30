@@ -1,7 +1,9 @@
 import { NavLink, Outlet, useParams } from "react-router-dom"
+import { PropertyHoldFlag } from "../components/PropertyHoldFlag"
 import { StagePill } from "../components/ui"
 import { formatMoney } from "../domain/money"
 import { getProfile } from "../domain/profiles"
+import { propertyHold } from "../domain/propertyHold"
 import { computeStage } from "../domain/stage"
 import { useStore } from "../state/Store"
 
@@ -13,12 +15,19 @@ export default function AccountLayout() {
   const account = store.accounts.find((item) => item.id === id)
   const workspace = store.workspace
   if (!account || !workspace) return <p>That file is not on this device.</p>
+  const profile = getProfile(workspace.stateCode)
   const stage = computeStage({
     account,
-    profile: getProfile(workspace.stateCode),
+    profile,
     workspace,
     notices: store.notices,
     checks: store.checks,
+  })
+  const hold = propertyHold({
+    recoveredAt: account.recoveredAt,
+    holdStartsOn: account.propertyHoldStartsOn,
+    holdDays: account.propertyHoldDays,
+    profileHoldDays: profile.personalPropertyHoldDays,
   })
 
   return (
@@ -30,7 +39,10 @@ export default function AccountLayout() {
             {account.vehicleYear} {account.vehicleMake} {account.vehicleModel} · {account.vin || "No VIN"} · {formatMoney(account.amountPastDueCents)} past due
           </p>
         </div>
-        <StagePill stage={stage.stage} label={stage.label} />
+        <div className="flex flex-wrap items-center gap-2">
+          <PropertyHoldFlag hold={hold} />
+          <StagePill stage={stage.stage} label={stage.label} />
+        </div>
       </div>
       {stage.stage === "cure_active" && stage.daysRemaining != null ? (
         <p className="mt-3 text-sm font-semibold">

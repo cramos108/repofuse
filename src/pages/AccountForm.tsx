@@ -4,6 +4,7 @@ import { Banner, Button, Field, TextInput, Area, errorText, usePageTitle } from 
 import { todayIso } from "../domain/dates"
 import { parseDollars, dollarsInput } from "../domain/money"
 import { AccountLimitError } from "../domain/limits"
+import { accessFor } from "../domain/roles"
 import { useStore, type AccountInput } from "../state/Store"
 
 export default function AccountForm({ mode }: { mode: "create" | "edit" }) {
@@ -78,6 +79,19 @@ export default function AccountForm({ mode }: { mode: "create" | "edit" }) {
 
   if (mode === "edit" && !existing) {
     return <p>That file is not on this device.</p>
+  }
+
+  const access = store.workspace ? accessFor(store.workspace, store.seat) : null
+  if (store.workspace && !access?.ledger) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-3">
+        <Link to="/app" className="text-sm font-semibold underline">Back to the lot</Link>
+        <h1 className="font-display text-4xl">Collections role required</h1>
+        <p className="text-sm leading-6">
+          New delinquencies and ledger notes belong to the collections seat. This seat can open active files, status, and the personal-property log. A Pro owner can write both.
+        </p>
+      </div>
+    )
   }
 
   return (

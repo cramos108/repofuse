@@ -4,6 +4,7 @@ import { Banner, Button, Card, errorText } from "../components/ui"
 import { postItems, preItems } from "../domain/checklists"
 import { formatStamp, todayIso } from "../domain/dates"
 import { getProfile } from "../domain/profiles"
+import { accessFor } from "../domain/roles"
 import { computeStage } from "../domain/stage"
 import { useStore } from "../state/Store"
 
@@ -16,6 +17,7 @@ export default function GuardrailsPage() {
   const [word, setWord] = useState("")
   const [formError, setFormError] = useState<string | null>(null)
   if (!account || !workspace) return null
+  const access = accessFor(workspace, store.seat)
   const profile = getProfile(workspace.stateCode)
   const stage = computeStage({
     account,
@@ -65,11 +67,13 @@ export default function GuardrailsPage() {
               {ack ? (
                 <p className="mt-2 text-sm leading-6">
                   {formatStamp(ack.ackedAt)} · {ack.operatorName}
-                  <button type="button" className="ml-3 font-semibold underline" onClick={() => void store.voidCheck(ack.id)}>
-                    Void
-                  </button>
+                  {access.field ? (
+                    <button type="button" className="ml-3 font-semibold underline" onClick={() => void store.voidCheck(ack.id)}>
+                      Void
+                    </button>
+                  ) : null}
                 </p>
-              ) : (
+              ) : access.field ? (
                 <>
                   <button
                     type="button"
@@ -100,6 +104,8 @@ export default function GuardrailsPage() {
                     </div>
                   ) : null}
                 </>
+              ) : (
+                <p className="mt-2 text-sm">Not recorded. Acknowledgments need the field role.</p>
               )}
             </Card>
           )
@@ -115,11 +121,13 @@ export default function GuardrailsPage() {
               {ack ? (
                 <p className="mt-2 text-sm">
                   {formatStamp(ack.ackedAt)} · {ack.operatorName}
-                  <button type="button" className="ml-3 font-semibold underline" onClick={() => void store.voidCheck(ack.id)}>
-                    Void
-                  </button>
+                  {access.field ? (
+                    <button type="button" className="ml-3 font-semibold underline" onClick={() => void store.voidCheck(ack.id)}>
+                      Void
+                    </button>
+                  ) : null}
                 </p>
-              ) : (
+              ) : access.field ? (
                 <>
                   <p className="mt-2 text-sm leading-6">{item.statement}</p>
                   {item.confirmWord ? (
@@ -132,6 +140,8 @@ export default function GuardrailsPage() {
                     Record acknowledgment
                   </Button>
                 </>
+              ) : (
+                <p className="mt-2 text-sm leading-6">{item.statement} Not recorded.</p>
               )}
             </Card>
           )

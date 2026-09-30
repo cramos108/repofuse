@@ -1,10 +1,13 @@
 import { useEffect, useState, type FormEvent } from "react"
 import { Link, useParams } from "react-router-dom"
+import { PropertyHoldFlag } from "../components/PropertyHoldFlag"
 import { Banner, Button, Card, Field, TextInput, errorText } from "../components/ui"
 import { formatLongDate, formatStamp, todayIso } from "../domain/dates"
 import { dollarsInput, formatMoney, parseDollars, redemptionTotal, reinstatementTotal, saleBalance, storageCents } from "../domain/money"
 import { getProfile } from "../domain/profiles"
 import { worksheetInput } from "../domain/packet"
+import { propertyHold } from "../domain/propertyHold"
+import { accessFor } from "../domain/roles"
 import { computeStage, earliestDispositionOn } from "../domain/stage"
 import { useStore } from "../state/Store"
 
@@ -25,6 +28,8 @@ export default function PostRepoPage() {
   const [proceeds, setProceeds] = useState("")
   const [overrideDays, setOverrideDays] = useState("")
   const [overrideReason, setOverrideReason] = useState("")
+  const [holdStart, setHoldStart] = useState("")
+  const [holdDays, setHoldDays] = useState("")
   const [formError, setFormError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -35,11 +40,20 @@ export default function PostRepoPage() {
     setFacility(account.storageFacility)
     setOverrideDays(account.dispositionWaitOverride?.toString() ?? "")
     setOverrideReason(account.dispositionWaitReason)
+    setHoldStart(account.propertyHoldStartsOn ?? (account.recoveredAt ? account.recoveredAt.slice(0, 10) : ""))
+    setHoldDays(account.propertyHoldDays?.toString() ?? "")
   }, [account])
 
   if (!account || !workspace) return null
 
+  const access = accessFor(workspace, store.seat)
   const profile = getProfile(workspace.stateCode)
+  const hold = propertyHold({
+    recoveredAt: account.recoveredAt,
+    holdStartsOn: account.propertyHoldStartsOn,
+    holdDays: account.propertyHoldDays,
+    profileHoldDays: profile.personalPropertyHoldDays,
+  })
   const stage = computeStage({
     account,
     profile,
@@ -86,12 +100,35 @@ export default function PostRepoPage() {
     }
   }
 
+  async function saveHold(event: FormEvent) {
+    event.preventDefault()
+    const daysText = holdDays.trim()
+    const days = daysText === "" ? null : Number(daysText)
+    if (days != null && (!Number.isInteger(days) || days < 1)) {
+      setFormError("Hold days need to be a whole number, or blank to use the state worksheet.")
+      return
+    }
+    try {
+      await store.patchAccount(
+        account!.id,
+        { propertyHoldStartsOn: holdStart || null, propertyHoldDays: days },
+        "Personal property hold dates updated.",
+        "field",
+      )
+      setFormError(null)
+    } catch (reason) {
+      setFormError(errorText(reason))
+    }
+  }
+
   return (
     <div className="space-y-4">
       {!account.recoveredAt ? (
         <Card>
           <h2 className="text-lg font-semibold">Log recovery</h2>
           <p className="mt-1 text-sm leading-6">This records that the vehicle is in the lot’s possession. It does not describe how to recover it.</p>
+          {access.field ? (
+          <>
           {stage.stage === "cure_active" ? (
             <Banner tone="warn">The cure window is still open. Logging recovery now is written into the audit as an early recovery.</Banner>
           ) : null}
@@ -123,6 +160,10 @@ export default function PostRepoPage() {
               {stage.stage === "cure_active" ? "Log recovery anyway" : "Log recovery"}
             </Button>
           </form>
+          </>
+          ) : (
+            <p className="mt-3 text-sm leading-6">Logging recovery needs the field role. A Pro owner can write both.</p>
+          )}
         </Card>
       ) : (
         <Banner tone="good">
@@ -135,12 +176,48 @@ export default function PostRepoPage() {
       ))}
 
       <Card>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">Personal property hold</h2>
+          <PropertyHoldFlag hold={hold} />
+        </div>
+        <p className="mt-1 text-sm leading-6">
+          Days left are counted on this device from the start date through the hold length.
+          {profile.personalPropertyHoldDays
+            ? ` The ${workspace.stateCode} worksheet starts at ${profile.personalPropertyHoldDays} days unless this file sets its own count.`
+            : " This state worksheet has no default hold length, so enter the days counsel gave you."}
+          {" "}The flag is an operational reminder. It is not a disposal notice and not a legal opinion.
+          {hold.expiresOn ? ` The count reaches zero after ${formatLongDate(hold.expiresOn)}.` : ""}
+        </p>
+        {hold.daysRemaining != null ? (
+          <p className="mt-3 font-display text-4xl">
+            {hold.daysRemaining < 0 ? "Past the hold" : `${hold.daysRemaining} day${hold.daysRemaining === 1 ? "" : "s"}`}
+          </p>
+        ) : (
+          <p className="mt-3 text-sm">No hold is running until recovery is logged or a start date is saved.</p>
+        )}
+        {access.field ? (
+          <form onSubmit={(event) => void saveHold(event)} className="mt-4 space-y-3">
+            <Field label="Hold starts" hint="Defaults to the recovery date.">
+              <TextInput type="date" value={holdStart} onChange={(event) => setHoldStart(event.target.value)} />
+            </Field>
+            <Field label="Hold days" hint="Blank uses the state worksheet.">
+              <TextInput inputMode="numeric" value={holdDays} onChange={(event) => setHoldDays(event.target.value)} />
+            </Field>
+            <Button type="submit" variant="secondary">Save hold dates</Button>
+          </form>
+        ) : (
+          <p className="mt-3 text-sm leading-6">Saving hold dates needs the field role.</p>
+        )}
+      </Card>
+
+      <Card>
         <h2 className="text-lg font-semibold">Redemption worksheet</h2>
         <p className="mt-1 text-sm leading-6">
           Payoff + expenses + storage − unearned credit. {profile.reinstatement === "none"
             ? "This profile does not flag a statutory reinstatement right, so no reinstatement figure is shown."
             : "The reinstatement line is past due + expenses + storage, without the unearned-credit subtraction."}
         </p>
+        {access.ledger ? (
         <form onSubmit={(event) => void saveFigures(event)} className="mt-4 space-y-3">
           <Field label="Daily storage">
             <TextInput inputMode="decimal" value={daily} onChange={(event) => setDaily(event.target.value)} />
@@ -153,6 +230,9 @@ export default function PostRepoPage() {
           </Field>
           <Button type="submit" variant="secondary">Save figures</Button>
         </form>
+        ) : (
+          <p className="mt-3 text-sm leading-6">Ledger figures stay visible. Saving them needs the collections role.</p>
+        )}
         <dl className="mt-4 space-y-2 text-sm">
           <Row label="Payoff" value={formatMoney(sheet.payoffCents)} />
           <Row label="Expenses" value={formatMoney(sheet.expenseCents)} />
@@ -161,6 +241,7 @@ export default function PostRepoPage() {
           <Row label="Redemption worksheet" value={formatMoney(redemption)} />
           {profile.reinstatement !== "none" ? <Row label="Reinstatement worksheet" value={formatMoney(reinstatementTotal(sheet))} /> : null}
         </dl>
+        {access.ledger ? (
         <form
           className="mt-4 flex flex-col gap-2 sm:flex-row"
           onSubmit={(event) => {
@@ -180,11 +261,14 @@ export default function PostRepoPage() {
           <TextInput inputMode="decimal" value={expenseAmount} onChange={(event) => setExpenseAmount(event.target.value)} placeholder="0.00" aria-label="Expense amount" />
           <Button type="submit" variant="secondary">Add</Button>
         </form>
+        ) : null}
         <ul className="mt-3 space-y-2 text-sm">
           {expenses.map((line) => (
             <li key={line.id} className="flex items-center justify-between gap-3">
               <span>{line.label} · {formatMoney(line.amountCents)}</span>
-              <button type="button" className="font-semibold underline" onClick={() => void store.removeExpense(line.id)}>Remove</button>
+              {access.ledger ? (
+                <button type="button" className="font-semibold underline" onClick={() => void store.removeExpense(line.id)}>Remove</button>
+              ) : null}
             </li>
           ))}
         </ul>
@@ -196,6 +280,8 @@ export default function PostRepoPage() {
           Earliest sale date on this worksheet: {earliest ? formatLongDate(earliest) : "log a notice of intent to dispose first"}.
           Wait in use: {wait} days.
         </p>
+        {access.ledger ? (
+        <>
         <form
           className="mt-3 space-y-3"
           onSubmit={(event) => {
@@ -243,11 +329,6 @@ export default function PostRepoPage() {
           </Field>
           <Button type="submit">Log disposition</Button>
         </form>
-        {balance ? (
-          <p className="mt-3 text-sm font-semibold">
-            {balance.kind === "deficiency" ? "Deficiency" : balance.kind === "surplus" ? "Surplus" : "Even"} worksheet: {formatMoney(balance.cents)}
-          </p>
-        ) : null}
         <div className="mt-4 flex flex-wrap gap-2">
           <Button type="button" variant="secondary" onClick={() => void store.markRedeemed(account.id)}>
             Mark redeemed
@@ -261,6 +342,15 @@ export default function PostRepoPage() {
             </Button>
           ) : null}
         </div>
+        </>
+        ) : (
+          <p className="mt-3 text-sm leading-6">Disposition, redemption, and closing need the collections role.</p>
+        )}
+        {balance ? (
+          <p className="mt-3 text-sm font-semibold">
+            {balance.kind === "deficiency" ? "Deficiency" : balance.kind === "surplus" ? "Surplus" : "Even"} worksheet: {formatMoney(balance.cents)}
+          </p>
+        ) : null}
         <p className="mt-4 text-sm">
           Personal property lives on the <Link className="font-semibold underline" to={`/app/accounts/${account.id}/field`}>Field tab</Link>.
         </p>

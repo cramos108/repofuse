@@ -92,8 +92,14 @@ export async function loadLot(): Promise<LotData> {
       db.getAll("expenses"),
     ])
   return {
-    workspace: workspace ?? null,
-    accounts,
+    workspace: workspace
+      ? { ...workspace, operatorRole: workspace.operatorRole === "field" ? "field" : "collections" }
+      : null,
+    accounts: accounts.map((account) => ({
+      ...account,
+      propertyHoldStartsOn: account.propertyHoldStartsOn ?? null,
+      propertyHoldDays: account.propertyHoldDays ?? null,
+    })),
     events,
     notices,
     contacts,

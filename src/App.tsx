@@ -12,6 +12,7 @@ import GuardrailsPage from "./pages/Guardrails"
 import FieldPage from "./pages/Field"
 import PostRepoPage from "./pages/PostRepo"
 import SettingsPage from "./pages/Settings"
+import SignInPage from "./pages/SignIn"
 
 const PacketPage = lazy(() => import("./pages/Packet"))
 
@@ -19,8 +20,10 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
-      <Route path="/app/setup" element={<SetupPage />} />
-      <Route path="/app" element={<RequireWorkspace />}>
+      <Route path="/app/signin" element={<SignInPage />} />
+      <Route path="/app" element={<RequireAccount />}>
+      <Route path="setup" element={<SetupPage />} />
+      <Route element={<RequireWorkspace />}>
         <Route element={<Shell />}>
           <Route index element={<Dashboard />} />
           <Route path="accounts/new" element={<AccountForm mode="create" />} />
@@ -42,31 +45,35 @@ export default function App() {
           <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Route>
+      </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }
 
-function RequireWorkspace() {
-  const { ready, error, workspace } = useStore()
+function RequireAccount() {
+  const { ready, error, authReady, session } = useStore()
   if (error) {
     return (
       <div className="mx-auto max-w-lg px-4 py-16">
         <h1 className="font-display text-4xl">This browser blocked the lot file</h1>
         <p className="mt-3 text-sm leading-6">{error}</p>
-        <p className="mt-3 text-sm leading-6">
-          Allow site data for RepoFuse, then reload. Borrower records are not stored anywhere else.
-        </p>
       </div>
     )
   }
-  if (!ready) {
+  if (!ready || !authReady) {
     return (
       <div className="mx-auto max-w-lg px-4 py-16">
         <h1 className="font-display text-4xl">Opening the lot file on this device</h1>
       </div>
     )
   }
+  if (!session) return <Navigate to="/app/signin" replace />
+  return <Outlet />
+}
+
+function RequireWorkspace() {
+  const { workspace } = useStore()
   if (!workspace?.setupComplete) return <Navigate to="/app/setup" replace />
   return <Outlet />
 }

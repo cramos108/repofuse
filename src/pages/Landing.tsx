@@ -13,29 +13,31 @@ const freeFeatures = [
   "Post-repo redemption and deficiency worksheet",
   "PDF packet generated on this device",
   "20 open accounts",
-  "No sign-in",
+  "One signed-in user",
+  "One role: collections or field",
 ]
 
 const proFeatures = [
   "Everything in Free",
   "Unlimited open accounts",
-  "Email sign-in for the team",
+  "Collections and field roles on the same dealership",
+  "Teammate emails and roles — the lot file is not",
   "License tier checked in Supabase",
-  "Dealership name and state synced — the lot file is not",
   "PDF without the Free banner. The disclaimer stays.",
 ]
 
 export default function Landing() {
   usePageTitle("RepoFuse")
   const navigate = useNavigate()
-  const { ready, workspace } = useStore()
-  const open = ready && workspace?.setupComplete
+  const { ready, workspace, session } = useStore()
+  const open = ready && workspace?.setupComplete && session
 
   function enter(intent: "free" | "pro") {
     if (intent === "pro") sessionStorage.setItem("repofuse-intent", "pro")
     else sessionStorage.removeItem("repofuse-intent")
     if (open && intent === "pro") navigate("/app/settings?intent=pro")
-    else navigate("/app")
+    else if (session) navigate("/app")
+    else navigate("/app/signin")
   }
 
   return (
@@ -89,11 +91,32 @@ export default function Landing() {
               </button>
             </div>
             <p className="mt-4 max-w-md text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-              Free opens the lot file immediately. Go Pro opens the same file, then the sign-in
-              panel. This build does not charge a card.
+              Both tiers sign in. Free is one person and one role. Pro adds the other role and
+              teammates. The lot file still stays on this device. This build does not charge a card.
             </p>
           </div>
-          <ExamplePhone />
+          <div className="grid gap-3">
+            <article className="panel p-5">
+              <p className="badge">
+                <StatusDot />
+                Collections
+              </p>
+              <h2 className="mt-3 text-lg font-semibold">New delinquencies and the ledger</h2>
+              <p className="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                Notices, contacts, and cure notes. A Free collections seat does not log field recovery.
+              </p>
+            </article>
+            <article className="panel p-5">
+              <p className="badge">
+                <StatusDot className="text-sky-400" />
+                Field
+              </p>
+              <h2 className="mt-3 text-lg font-semibold">Recovery logs and property holds</h2>
+              <p className="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                Active files, status, personal property, and the hold countdown. A Free field seat does not open new files.
+              </p>
+            </article>
+          </div>
         </section>
 
         <section className="grid gap-3 sm:grid-cols-3">
@@ -138,7 +161,7 @@ export default function Landing() {
             <PriceCard
               name="Free"
               price="$0"
-              detail="One device. One lot file."
+              detail="One signed-in user. One role."
               features={freeFeatures}
               action="Continue Free"
               onClick={() => enter("free")}
@@ -146,7 +169,7 @@ export default function Landing() {
             <PriceCard
               name="Pro"
               price="$49.99/mo"
-              detail="Team sign-in. The lot file stays local."
+              detail="Multi-user. Collections and field."
               features={proFeatures}
               action="Go Pro"
               emphasized
@@ -257,31 +280,4 @@ function PriceCard({
   )
 }
 
-function ExamplePhone() {
-  return (
-    <div
-      className="mx-auto w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-950 p-3 text-zinc-50 shadow-[0_0_56px_-16px_rgba(34,211,238,0.45)]"
-      aria-hidden
-    >
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
-        <p className="badge">
-          <StatusDot />
-          Example · not a live file
-        </p>
-        <p className="mt-5 text-sm text-zinc-400">Cure period active</p>
-        <p className="grad-text font-display text-5xl">12 days</p>
-        <p className="mt-1 text-sm text-zinc-400">Window clears Jan 17</p>
-        <div className="mt-6 rounded-lg border border-zinc-800 bg-zinc-950 p-4">
-          <p className="font-semibold">Example Buyer</p>
-          <p className="text-sm text-zinc-400">2014 Accord · stock S-21</p>
-          <p className="mt-3 text-xs text-zinc-500">Notice sent · certified mail on file</p>
-        </div>
-        <div className="mt-4 grid grid-cols-3 gap-2 text-center text-[11px] font-semibold">
-          <span className="rounded-md border border-zinc-800 bg-zinc-950 py-2 text-zinc-400">Notice</span>
-          <span className="rounded-md bg-cyan-400 py-2 text-zinc-950">Cure</span>
-          <span className="rounded-md border border-zinc-800 bg-zinc-950 py-2 text-zinc-500">Ready</span>
-        </div>
-      </div>
-    </div>
-  )
-}
+

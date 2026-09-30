@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from "react"
 import { useParams } from "react-router-dom"
-import { Button, Card, Field, TextInput, Area, errorText } from "../components/ui"
+import { Banner, Button, Card, Field, TextInput, Area, errorText } from "../components/ui"
 import { formatStamp } from "../domain/dates"
+import { accessFor } from "../domain/roles"
 import { getPhoto } from "../lib/db"
 import { useStore } from "../state/Store"
 
@@ -24,6 +25,7 @@ export default function FieldPage() {
   const [releaseName, setReleaseName] = useState("")
 
   if (!account) return null
+  const access = store.workspace ? accessFor(store.workspace, store.seat) : null
   const spots = store.spots.filter((spot) => spot.accountId === account.id).sort((a, b) => b.at.localeCompare(a.at))
   const items = store.inventory.filter((item) => item.accountId === account.id)
 
@@ -76,6 +78,7 @@ export default function FieldPage() {
         <p className="mt-1 text-sm leading-6 text-ink-soft dark:text-paper/70">
           Location is captured only when you tap the button. Map tiles are not loaded, so the coordinates are not sent to a map provider.
         </p>
+        {access?.field ? (
         <form onSubmit={(event) => void onSpot(event)} className="mt-4 space-y-3">
           <label className="flex items-start gap-3 text-sm leading-6">
             <input type="checkbox" className="mt-1" checked={attested} onChange={(event) => setAttested(event.target.checked)} />
@@ -110,6 +113,9 @@ export default function FieldPage() {
           {formError ? <p role="alert" className="text-sm font-semibold text-rose">{formError}</p> : null}
           <Button type="submit">Save spot on this device</Button>
         </form>
+        ) : (
+          <Banner>This seat can read spots. Saving a spot needs the field role. A Pro owner can write both.</Banner>
+        )}
       </Card>
 
       {spots.map((spot) => (
@@ -128,7 +134,8 @@ export default function FieldPage() {
 
       <Card>
         <h2 className="text-lg font-semibold">Personal property inventory</h2>
-        <p className="mt-1 text-sm leading-6">Itemize property left in the vehicle. This receipt is part of the on-device packet.</p>
+        <p className="mt-1 text-sm leading-6">Itemize property left in the vehicle. This receipt is part of the on-device packet. The hold countdown is on After recovery.</p>
+        {access?.field ? (
         <form
           className="mt-4 space-y-3"
           onSubmit={(event) => {
@@ -154,12 +161,17 @@ export default function FieldPage() {
           </Field>
           <Button type="submit">Add item</Button>
         </form>
+        ) : (
+          <p className="mt-3 text-sm leading-6">Adding or releasing property needs the field role.</p>
+        )}
         <ul className="mt-4 space-y-3">
           {items.map((item) => (
             <li key={item.id} className="rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-800">
               <p className="font-semibold">{item.description}</p>
               <p>{item.condition || "Condition not noted"} · {item.storageLocation || "Location not noted"} · {item.status}</p>
-              {item.status === "held" ? (
+              {item.status !== "held" ? (
+                <p className="mt-1">Released to {item.releasedTo || "unnamed"}</p>
+              ) : access?.field ? (
                 <form
                   className="mt-2 flex flex-col gap-2 sm:flex-row"
                   onSubmit={(event) => {
@@ -171,7 +183,7 @@ export default function FieldPage() {
                   <Button type="submit" variant="secondary">Mark released</Button>
                 </form>
               ) : (
-                <p className="mt-1">Released to {item.releasedTo || "unnamed"}</p>
+                <p className="mt-1">Still held on this device.</p>
               )}
             </li>
           ))}

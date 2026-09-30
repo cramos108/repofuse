@@ -10,6 +10,7 @@ import {
 } from "react"
 import { findItem } from "../domain/checklists"
 import { AccountLimitError, remainingOpenSlots } from "../domain/limits"
+import { assertAccess } from "../domain/roles"
 import { getProfile } from "../domain/profiles"
 import { computeStage, earliestDispositionOn } from "../domain/stage"
 import type {
@@ -27,6 +28,7 @@ import type {
   PhotoRecord,
   Workspace,
 } from "../domain/types"
+import type { Seat } from "../domain/roles"
 import { todayIso } from "../domain/dates"
 import {
   deleteAccountGraph,
@@ -49,7 +51,7 @@ import {
 import { uid } from "../lib/id"
 import { compressImage } from "../lib/images"
 import { buildSample } from "../lib/sample"
-import { currentSession, fetchLicenseTier } from "../lib/supabase"
+import { currentSession, fetchLicenseTier, fetchOwnMembership, pullWorkspaceSettings, signOutPro, supabase } from "../lib/supabase"
 
 const EMPTY: LotData = {
   workspace: null,
@@ -74,6 +76,7 @@ export interface SetupInput {
   cureWaived: boolean
   cureWaivedReason: string
   counselConfirmed: boolean
+  operatorRole: Workspace["operatorRole"]
 }
 
 export interface AccountInput {
@@ -105,13 +108,17 @@ export interface NoticeInput {
 interface StoreValue extends LotData {
   ready: boolean
   error: string | null
+  authReady: boolean
+  session: { userId: string; email: string } | null
+  seat: Seat
   saveSetup: (input: SetupInput) => Promise<void>
+  signOut: () => Promise<void>
   updateWorkspace: (patch: Partial<Workspace>) => Promise<void>
   setTier: (tier: Workspace["tier"], email: string | null) => Promise<void>
   refreshLicense: () => Promise<string>
   createAccount: (input: AccountInput) => Promise<string>
   updateAccount: (id: string, input: AccountInput) => Promise<void>
-  patchAccount: (id: string, patch: Partial<Account>, summary: string) => Promise<void>
+  patchAccount: (id: string, patch: Partial<Account>, summary: string, kind?: "ledger" | "field") => Promise<void>
   deleteAccount: (id: string) => Promise<void>
   addNotice: (input: NoticeInput) => Promise<void>
   voidNotice: (id: string) => Promise<void>
@@ -155,6 +162,11 @@ const StoreContext = createContext<StoreValue | null>(null)
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [lot, setLot] = useState<LotData | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [session, setSession] = useState<{ userId: string; email: string } | null>(null)
+  const [authReady, setAuthReady] = useState(false)
+  const [seat, setSeat] = useState<Seat>("owner")
+  const seatRef = useRef<Seat>("owner")
+  seatRef.current = seat
   const lotRef = useRef<LotData>(EMPTY)
 
   const reload = useCallback(async () => {
@@ -175,10 +187,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [reload])
 
+  useEffect(() => {
+    if (!supabase) {
+      setAuthReady(true)
+      return
+    }
+    let unsubscribe = () => {}
+    currentSession()
+      .then((next) => setSession(next))
+      .catch(() => setSession(null))
+      .finally(() => setAuthReady(true))
+    const { data } = supabase.auth.onAuthStateChange((_event, next) => {
+      const user = next?.user
+      setSession(user ? { userId: user.id, email: user.email ?? "" } : null)
+      setAuthReady(true)
+    })
+    unsubscribe = () => data.subscription.unsubscribe()
+    return unsubscribe
+  }, [])
+
   const requireWorkspace = useCallback(() => {
     const workspace = lotRef.current.workspace
     if (!workspace) throw new Error("Finish state setup before logging a file.")
     return workspace
+  }, [])
+
+  const gate = useCallback((workspace: Workspace, kind: "ledger" | "field") => {
+    assertAccess(workspace, kind, seatRef.current)
   }, [])
 
   const requireAccount = useCallback((id: string) => {
@@ -220,6 +255,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         counselConfirmedAt: input.counselConfirmed ? current?.counselConfirmedAt ?? now : null,
         counselConfirmedBy: input.counselConfirmed ? input.operatorName.trim() : "",
         operatorName: input.operatorName.trim(),
+        operatorRole: input.operatorRole,
         tier: current?.tier ?? "free",
         proEmail: current?.proEmail ?? null,
         createdAt: current?.createdAt ?? now,
@@ -258,30 +294,55 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const current = lotRef.current.workspace
     if (!current) return "Finish setup before checking a license."
     try {
-      const session = await currentSession()
-      if (!session) {
-        await setTier("free", null)
-        return "No Pro session on this device. The lot stays on Free."
+      const active = await currentSession()
+      if (!active) return "Sign in to open the lot. The file on this device was not changed."
+      const [tier, remote, membership] = await Promise.all([
+        fetchLicenseTier(active.userId),
+        pullWorkspaceSettings().catch(() => null),
+        fetchOwnMembership().catch(() => null),
+      ])
+      const nextTier = membership ? "pro" : tier
+      const nextRole = membership?.role ?? remote?.operatorRole ?? current.operatorRole ?? "collections"
+      setSeat(membership ? "member" : "owner")
+      if (current.tier !== nextTier || current.proEmail !== active.email || current.operatorRole !== nextRole) {
+        await saveWorkspace({
+          ...current,
+          tier: nextTier,
+          proEmail: active.email,
+          operatorRole: nextRole,
+          updatedAt: new Date().toISOString(),
+        })
+        await reload()
       }
-      const tier = await fetchLicenseTier(session.userId)
-      await setTier(tier, session.email)
-      return tier === "pro"
-        ? `Pro is active for ${session.email}. The lot file was not uploaded.`
-        : `Signed in as ${session.email}. The license row is Free.`
+      if (membership) return `Signed in as ${active.email}. This seat is ${nextRole} on a Pro dealership. The lot file was not uploaded.`
+      return nextTier === "pro"
+        ? `Pro is active for ${active.email}. The lot file was not uploaded.`
+        : `Signed in as ${active.email}. Free is one role on this device.`
     } catch (reason) {
       return reason instanceof Error ? reason.message : "The license check failed. The cached tier was left as-is."
     }
-  }, [setTier])
+  }, [reload])
+
+  const signOut = useCallback(async () => {
+    await signOutPro()
+    setSession(null)
+    setSeat("owner")
+    const current = lotRef.current.workspace
+    if (!current) return
+    await saveWorkspace({ ...current, tier: "free", proEmail: null, updatedAt: new Date().toISOString() })
+    await reload()
+  }, [reload])
 
   const workspaceId = lot?.workspace?.id
   useEffect(() => {
-    if (!workspaceId) return
+    if (!authReady || !session || !workspaceId) return
     void refreshLicense()
-  }, [workspaceId, refreshLicense])
+  }, [authReady, session, workspaceId, refreshLicense])
 
   const createAccount = useCallback(
     async (input: AccountInput) => {
       const workspace = requireWorkspace()
+      gate(workspace, "ledger")
       if (remainingOpenSlots(lotRef.current.accounts, workspace.tier) === 0) {
         throw new AccountLimitError()
       }
@@ -299,32 +360,36 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const updateAccount = useCallback(
     async (id: string, input: AccountInput) => {
+      gate(requireWorkspace(), "ledger")
       const account = stampAccount({ ...requireAccount(id), ...normalizeAccount(input) })
       await putAccount(account, makeEvent(id, "account_updated", `Updated ${account.borrowerName}.`))
       await reload()
     },
-    [makeEvent, reload, requireAccount, stampAccount],
+    [makeEvent, reload, requireAccount, requireWorkspace, stampAccount],
   )
 
   const patchAccount = useCallback(
-    async (id: string, patch: Partial<Account>, summary: string) => {
+    async (id: string, patch: Partial<Account>, summary: string, kind: "ledger" | "field" = "ledger") => {
+      gate(requireWorkspace(), kind)
       const account = stampAccount({ ...requireAccount(id), ...patch, id })
       await putAccount(account, makeEvent(id, "worksheet", summary))
       await reload()
     },
-    [makeEvent, reload, requireAccount, stampAccount],
+    [makeEvent, reload, requireAccount, requireWorkspace, stampAccount],
   )
 
   const deleteAccount = useCallback(
     async (id: string) => {
+      gate(requireWorkspace(), "ledger")
       await deleteAccountGraph(id)
       await reload()
     },
-    [reload],
+    [reload, requireWorkspace],
   )
 
   const addNotice = useCallback(
     async (input: NoticeInput) => {
+      gate(requireWorkspace(), "ledger")
       if (input.method === "certified_mail" && input.trackingNumber.trim().length < 4) {
         throw new Error("Certified mail needs a tracking number.")
       }
@@ -353,6 +418,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const voidNotice = useCallback(
     async (id: string) => {
+      gate(requireWorkspace(), "ledger")
       const notice = lotRef.current.notices.find((item) => item.id === id)
       if (!notice || notice.voided) return
       const account = stampAccount(requireAccount(notice.accountId))
@@ -368,6 +434,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const addContact = useCallback(
     async (accountId: string, channel: ContactChannel, summary: string) => {
+      gate(requireWorkspace(), "ledger")
       const text = summary.trim()
       if (!text) throw new Error("Write what was said or sent.")
       const account = stampAccount(requireAccount(accountId))
@@ -387,6 +454,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const ackCheck = useCallback(
     async (accountId: string, itemKey: string) => {
       const workspace = requireWorkspace()
+      gate(workspace, "field")
       const account = requireAccount(accountId)
       const profile = getProfile(workspace.stateCode)
       const item = findItem(profile, workspace, itemKey)
@@ -429,6 +497,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const voidCheck = useCallback(
     async (id: string) => {
+      gate(requireWorkspace(), "field")
       const check = lotRef.current.checks.find((item) => item.id === id)
       if (!check || check.voided) return
       const account = stampAccount(requireAccount(check.accountId))
@@ -444,6 +513,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const logCure = useCallback(
     async (accountId: string, curedOn: string) => {
+      gate(requireWorkspace(), "ledger")
       const account = stampAccount({ ...requireAccount(accountId), lastCureOn: curedOn })
       await putAccount(account, makeEvent(accountId, "cure_received", `Cure logged on ${curedOn}.`))
       await reload()
@@ -462,6 +532,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       authorityAttested: boolean
       files: File[]
     }) => {
+      gate(requireWorkspace(), "field")
       if (!input.authorityAttested) {
         throw new Error("Attest that this spot is for an account the dealership services.")
       }
@@ -505,6 +576,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const addInventory = useCallback(
     async (input: { accountId: string; description: string; condition: string; storageLocation: string }) => {
+      gate(requireWorkspace(), "field")
       const description = input.description.trim()
       if (!description) throw new Error("Describe the item.")
       const account = stampAccount(requireAccount(input.accountId))
@@ -527,6 +599,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const releaseInventory = useCallback(
     async (id: string, releasedTo: string) => {
+      gate(requireWorkspace(), "field")
       const item = lotRef.current.inventory.find((row) => row.id === id)
       if (!item) return
       const account = stampAccount(requireAccount(item.accountId))
@@ -547,6 +620,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const addExpense = useCallback(
     async (accountId: string, label: string, amountCents: number) => {
+      gate(requireWorkspace(), "ledger")
       if (!label.trim()) throw new Error("Name the expense.")
       const account = stampAccount(requireAccount(accountId))
       const expense: ExpenseLine = {
@@ -563,6 +637,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const removeExpense = useCallback(
     async (id: string) => {
+      gate(requireWorkspace(), "ledger")
       const expense = lotRef.current.expenses.find((row) => row.id === id)
       if (!expense) return
       const account = stampAccount(requireAccount(expense.accountId))
@@ -575,6 +650,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const logRecovery = useCallback(
     async (accountId: string, at: string, facility: string, overrideOpenCure: boolean) => {
       const workspace = requireWorkspace()
+      gate(workspace, "field")
       const account = requireAccount(accountId)
       const stage = computeStage({
         account,
@@ -589,6 +665,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const next = stampAccount({
         ...account,
         recoveredAt: at,
+        propertyHoldStartsOn: account.propertyHoldStartsOn || at.slice(0, 10),
         storageFacility: facility.trim(),
         storageAsOf: at.slice(0, 10),
       })
@@ -604,6 +681,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const logDisposition = useCallback(
     async (accountId: string, saleOn: string, proceedsCents: number) => {
       const workspace = requireWorkspace()
+      gate(workspace, "ledger")
       const account = requireAccount(accountId)
       const profile = getProfile(workspace.stateCode)
       const wait = account.dispositionWaitOverride ?? workspace.armedDispositionWaitDays
@@ -630,6 +708,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const markRedeemed = useCallback(
     async (accountId: string) => {
+      gate(requireWorkspace(), "ledger")
       const account = stampAccount({ ...requireAccount(accountId), closedAs: "redeemed", saleOn: null, saleProceedsCents: null })
       await putAccount(account, makeEvent(accountId, "disposition", "Marked redeemed."))
       await reload()
@@ -639,6 +718,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const markClosed = useCallback(
     async (accountId: string) => {
+      gate(requireWorkspace(), "ledger")
       const account = stampAccount({ ...requireAccount(accountId), closedAs: "closed" })
       await putAccount(account, makeEvent(accountId, "account_updated", "File closed without a sale or redemption."))
       await reload()
@@ -648,6 +728,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const reopen = useCallback(
     async (accountId: string) => {
+      gate(requireWorkspace(), "ledger")
       const account = stampAccount({
         ...requireAccount(accountId),
         closedAs: null,
@@ -662,6 +743,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const loadSample = useCallback(async () => {
     const workspace = requireWorkspace()
+    gate(workspace, "ledger")
     if (lotRef.current.accounts.some((account) => account.sample)) return
     const slots = remainingOpenSlots(lotRef.current.accounts, workspace.tier)
     if (slots != null && slots < 2) throw new AccountLimitError()
@@ -720,7 +802,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ...(lot ?? EMPTY),
       ready: lot !== null,
       error,
+      authReady,
+      session,
+      seat,
       saveSetup,
+      signOut,
       updateWorkspace,
       setTier,
       refreshLicense,
@@ -753,7 +839,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [
       lot,
       error,
+      authReady,
+      session,
+      seat,
       saveSetup,
+      signOut,
       updateWorkspace,
       setTier,
       refreshLicense,
@@ -815,6 +905,8 @@ function blankAccount(id: string, now: string): Account {
     lastCureOn: null,
     closedAs: null,
     recoveredAt: null,
+    propertyHoldStartsOn: null,
+    propertyHoldDays: null,
     storageFacility: "",
     storageDailyCents: 0,
     storageAsOf: null,

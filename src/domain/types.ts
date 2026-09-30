@@ -1,5 +1,7 @@
 export type Tier = "free" | "pro"
 
+export type OperatorRole = "collections" | "field"
+
 export type NoticeKind =
   | "right_to_cure"
   | "intent_to_dispose"
@@ -37,6 +39,7 @@ export interface Workspace {
   counselConfirmedAt: string | null
   counselConfirmedBy: string
   operatorName: string
+  operatorRole: OperatorRole
   tier: Tier
   proEmail: string | null
   createdAt: string
@@ -63,6 +66,8 @@ export interface Account {
   lastCureOn: string | null
   closedAs: "redeemed" | "disposed" | "closed" | null
   recoveredAt: string | null
+  propertyHoldStartsOn: string | null
+  propertyHoldDays: number | null
   storageFacility: string
   storageDailyCents: number
   storageAsOf: string | null

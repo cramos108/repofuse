@@ -76,12 +76,14 @@ export function buildSample(workspace: Workspace, profile: StateProfile, now = n
   return { accounts: [avery, blake], notices, checks, events }
 }
 
-function account(partial: Omit<Account, "sample" | "lastCureOn" | "closedAs" | "recoveredAt" | "storageFacility" | "storageDailyCents" | "storageAsOf" | "unearnedCreditCents" | "dispositionWaitOverride" | "dispositionWaitReason" | "saleProceedsCents" | "saleOn" | "notes">): Account {
+function account(partial: Omit<Account, "sample" | "lastCureOn" | "closedAs" | "recoveredAt" | "propertyHoldStartsOn" | "propertyHoldDays" | "storageFacility" | "storageDailyCents" | "storageAsOf" | "unearnedCreditCents" | "dispositionWaitOverride" | "dispositionWaitReason" | "saleProceedsCents" | "saleOn" | "notes">): Account {
   return {
     sample: true,
     lastCureOn: null,
     closedAs: null,
     recoveredAt: null,
+    propertyHoldStartsOn: null,
+    propertyHoldDays: null,
     storageFacility: "",
     storageDailyCents: 2500,
     storageAsOf: null,

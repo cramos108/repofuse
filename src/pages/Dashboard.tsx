@@ -1,8 +1,11 @@
 import { useMemo, useState } from "react"
 import { Link } from "react-router-dom"
+import { PropertyHoldFlag } from "../components/PropertyHoldFlag"
 import { Banner, Button, Card, StagePill, StatusDot, TextInput, usePageTitle } from "../components/ui"
 import { FREE_OPEN_ACCOUNT_LIMIT } from "../domain/copy"
 import { getProfile } from "../domain/profiles"
+import { propertyHold } from "../domain/propertyHold"
+import { accessFor } from "../domain/roles"
 import { computeStage } from "../domain/stage"
 import { remainingOpenSlots } from "../domain/limits"
 import type { Stage } from "../domain/types"
@@ -48,10 +51,21 @@ export default function Dashboard() {
     return matchesQuery && matchesFilter
   })
   const slots = workspace ? remainingOpenSlots(store.accounts, workspace.tier) : null
+  const access = workspace ? accessFor(workspace, store.seat) : null
+  const holdsFlagged = rows.filter(({ account }) => {
+    const flag = propertyHold({
+      recoveredAt: account.recoveredAt,
+      holdStartsOn: account.propertyHoldStartsOn,
+      holdDays: account.propertyHoldDays,
+      profileHoldDays: profile.personalPropertyHoldDays,
+    }).flag
+    return flag === "soon" || flag === "expired"
+  }).length
   const metrics = [
     { label: "Cure active", value: rows.filter((row) => row.stage.stage === "cure_active").length, dot: "text-cyan-300" },
     { label: "Guardrails", value: rows.filter((row) => row.stage.stage === "guardrails_open").length, dot: "text-cyan-300" },
     { label: "Ready", value: rows.filter((row) => row.stage.stage === "ready_for_recovery").length, dot: "text-emerald-400" },
+    { label: "Property holds", value: holdsFlagged, dot: holdsFlagged > 0 ? "text-rose-400" : "text-cyan-300" },
   ]
 
   return (
@@ -70,11 +84,13 @@ export default function Dashboard() {
             {slots == null ? " · unlimited open files" : ` · ${slots} of ${FREE_OPEN_ACCOUNT_LIMIT} open slots left`}
           </p>
         </div>
-        <Link to="/app/accounts/new" className="cta">
-          New file
-        </Link>
+        {access?.ledger ? (
+          <Link to="/app/accounts/new" className="cta">
+            New file
+          </Link>
+        ) : null}
       </div>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {metrics.map((metric) => (
           <article key={metric.label} className="panel flex items-center justify-between px-4 py-3">
             <div>
@@ -117,20 +133,26 @@ export default function Dashboard() {
           </p>
           {sampleError ? <p className="mt-3 text-sm font-semibold text-rose">{sampleError}</p> : null}
           <div className="mt-4 flex flex-wrap gap-2">
-            <Link to="/app/accounts/new" className="cta">
-              New file
-            </Link>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setSampleError(null)
-                void store.loadSample().catch((reason: unknown) => {
-                  setSampleError(reason instanceof Error ? reason.message : "Could not load samples.")
-                })
-              }}
-            >
-              Load sample lot
-            </Button>
+            {access?.ledger ? (
+              <Link to="/app/accounts/new" className="cta">
+                New file
+              </Link>
+            ) : null}
+            {access?.ledger ? (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setSampleError(null)
+                  void store.loadSample().catch((reason: unknown) => {
+                    setSampleError(reason instanceof Error ? reason.message : "Could not load samples.")
+                  })
+                }}
+              >
+                Load sample lot
+              </Button>
+            ) : (
+              <p className="text-sm leading-6">New files need the collections role. This seat can still open files already on the device.</p>
+            )}
           </div>
         </Card>
       ) : null}
@@ -147,11 +169,21 @@ export default function Dashboard() {
                 </div>
                 <StagePill stage={stage.stage} label={stage.label} />
               </div>
-              <p className="mt-3 text-sm">
-                {stage.stage === "cure_active" && stage.daysRemaining != null
-                  ? `${stage.daysRemaining} day${stage.daysRemaining === 1 ? "" : "s"} left in the cure window`
-                  : stage.blockers[0] ?? stage.label}
-              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <p className="text-sm">
+                  {stage.stage === "cure_active" && stage.daysRemaining != null
+                    ? `${stage.daysRemaining} day${stage.daysRemaining === 1 ? "" : "s"} left in the cure window`
+                    : stage.blockers[0] ?? stage.label}
+                </p>
+                <PropertyHoldFlag
+                  hold={propertyHold({
+                    recoveredAt: account.recoveredAt,
+                    holdStartsOn: account.propertyHoldStartsOn,
+                    holdDays: account.propertyHoldDays,
+                    profileHoldDays: profile.personalPropertyHoldDays,
+                  })}
+                />
+              </div>
             </Card>
           </Link>
         ))}

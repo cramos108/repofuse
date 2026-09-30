@@ -4,6 +4,7 @@ import { ProfileCard } from "../components/ProfileCard"
 import { Banner, Button, Field, SelectInput, TextInput, Wordmark, errorText, usePageTitle } from "../components/ui"
 import { COUNTDOWN_RULE } from "../domain/copy"
 import { PROFILES_BY_NAME, getProfile } from "../domain/profiles"
+import type { OperatorRole } from "../domain/types"
 import { useStore } from "../state/Store"
 
 export default function SetupPage() {
@@ -13,6 +14,7 @@ export default function SetupPage() {
   const [dealershipName, setDealershipName] = useState(workspace?.dealershipName ?? "")
   const [lotCity, setLotCity] = useState(workspace?.lotCity ?? "")
   const [operatorName, setOperatorName] = useState(workspace?.operatorName ?? "")
+  const [operatorRole, setOperatorRole] = useState<OperatorRole>(workspace?.operatorRole === "field" ? "field" : "collections")
   const [stateCode, setStateCode] = useState(workspace?.stateCode ?? "TX")
   const profile = useMemo(() => getProfile(stateCode), [stateCode])
   const [cureDays, setCureDays] = useState(String(workspace?.armedCureDays ?? profile.suggestedCureDays ?? 15))
@@ -32,6 +34,7 @@ export default function SetupPage() {
     setDealershipName(workspace.dealershipName)
     setLotCity(workspace.lotCity)
     setOperatorName(workspace.operatorName)
+    setOperatorRole(workspace.operatorRole === "field" ? "field" : "collections")
     setStateCode(workspace.stateCode)
     const saved = getProfile(workspace.stateCode)
     setCureDays(String(workspace.armedCureDays ?? saved.suggestedCureDays ?? 15))
@@ -89,6 +92,7 @@ export default function SetupPage() {
         cureWaived: waived,
         cureWaivedReason: waiverReason,
         counselConfirmed: counsel,
+        operatorRole,
       })
       const intent = sessionStorage.getItem("repofuse-intent")
       sessionStorage.removeItem("repofuse-intent")
@@ -136,6 +140,12 @@ export default function SetupPage() {
               <TextInput value={operatorName} onChange={(event) => setOperatorName(event.target.value)} required />
             </Field>
           </div>
+          <Field label="Your role" hint="Free keeps this one role. Pro owners can write both, and can add the other role as a teammate.">
+            <SelectInput value={operatorRole} onChange={(event) => setOperatorRole(event.target.value as OperatorRole)}>
+              <option value="collections">Collections Manager / Specialist</option>
+              <option value="field">Repo Specialist / Field Agent</option>
+            </SelectInput>
+          </Field>
           <Field label="Operating state">
             <SelectInput value={stateCode} onChange={(event) => onState(event.target.value)}>
               {PROFILES_BY_NAME.map((item) => (
