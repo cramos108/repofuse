@@ -1,5 +1,5 @@
 import { useEffect, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react"
-import { Monitor, Moon, Sun } from "lucide-react"
+import { Moon, Sun } from "lucide-react"
 import { useTheme, type ThemeChoice } from "../theme/ThemeProvider"
 import type { Stage } from "../domain/types"
 
@@ -108,7 +108,6 @@ export function StagePill({ stage, label }: { stage: Stage; label: string }) {
 export function ThemeToggle() {
   const { choice, setChoice } = useTheme()
   const options: { id: ThemeChoice; label: string; icon: ReactNode }[] = [
-    { id: "system", label: "System theme", icon: <Monitor size={16} aria-hidden /> },
     { id: "light", label: "Light theme", icon: <Sun size={16} aria-hidden /> },
     { id: "dark", label: "Dark theme", icon: <Moon size={16} aria-hidden /> },
   ]
