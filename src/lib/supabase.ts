@@ -22,8 +22,10 @@ export const supabaseConfigured = supabase !== null
 export async function sendMagicLink(email: string): Promise<void> {
   if (!supabase) throw new Error("Supabase is not configured on this deployment.")
   const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: { emailRedirectTo: window.location.origin },
+    email: email,
+    options: {
+      emailRedirectTo: "https://repofuse-olive.vercel.app",
+    },
   })
   if (error) throw error
 }
