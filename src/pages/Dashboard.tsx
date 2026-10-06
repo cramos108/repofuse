@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { Link } from "react-router-dom"
-import { FieldStatusFlag } from "../components/FieldLinkPanel"
+import { FieldAssignments, FieldStatusFlag } from "../components/FieldLinkPanel"
 import { PropertyHoldFlag } from "../components/PropertyHoldFlag"
 import { Banner, Button, Card, StagePill, StatusDot, TextInput, usePageTitle } from "../components/ui"
 import { FREE_OPEN_ACCOUNT_LIMIT } from "../domain/copy"
@@ -108,6 +108,7 @@ export default function Dashboard() {
           Day counts are not marked counsel-confirmed. The countdown still runs. The packet will say confirmation is missing.
         </Banner>
       ) : null}
+      <FieldAssignments />
       <TextInput
         value={query}
         onChange={(event) => setQuery(event.target.value)}

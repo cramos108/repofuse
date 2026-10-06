@@ -10,7 +10,7 @@ import {
 } from "react"
 import { findItem } from "../domain/checklists"
 import { AccountLimitError, remainingOpenSlots } from "../domain/limits"
-import { buildFieldSnapshot, decodeFieldReturn, fieldLinkUrl } from "../domain/fieldLink"
+import { buildFieldSnapshot, conditionPhotosFrom, decodeFieldReturn, fieldLinkUrl, type ConditionPhoto } from "../domain/fieldLink"
 import { assertAccess, roleOf } from "../domain/roles"
 import { getProfile } from "../domain/profiles"
 import { computeStage, earliestDispositionOn } from "../domain/stage"
@@ -44,6 +44,7 @@ import {
   putContact,
   putExpense,
   putFieldGrant,
+  putFieldRecovery,
   putInventory,
   putNotice,
   putSpot,
@@ -52,7 +53,7 @@ import {
   type LotData,
 } from "../lib/db"
 import { uid } from "../lib/id"
-import { compressImage } from "../lib/images"
+import { compressImage, dataUrlToBlob } from "../lib/images"
 import { buildSample } from "../lib/sample"
 import { currentSession, fetchLicenseTier, fetchOwnMembership, pullWorkspaceSettings, signOutPro, supabase } from "../lib/supabase"
 
@@ -161,7 +162,7 @@ interface StoreValue extends LotData {
   eraseEverything: () => Promise<void>
   createFieldLink: (accountId: string, agencyLabel: string) => Promise<string>
   revokeFieldLink: (id: string) => Promise<void>
-  applyFieldStatus: (token: string, status: "secured" | "unable", note: string) => Promise<void>
+  applyFieldStatus: (token: string, status: "secured" | "unable", note: string, photos?: ConditionPhoto[]) => Promise<void>
   applyFieldReturn: (code: string) => Promise<void>
 }
 
@@ -773,7 +774,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [makeEvent, reload, requireWorkspace])
 
   const writeFieldStatus = useCallback(
-    async (token: string, status: "secured" | "unable", note: string, at: string) => {
+    async (token: string, status: "secured" | "unable", note: string, at: string, rawPhotos: ConditionPhoto[] = []) => {
+      const photos = conditionPhotosFrom(rawPhotos)
+      if (!photos) throw new Error("Condition photos must be up to 3 JPEGs.")
       const grant = lotRef.current.fieldGrants.find((item) => item.id === token)
       if (!grant) throw new Error("This device has no field link with that code.")
       if (grant.revokedAt) throw new Error("That field link was revoked.")
@@ -782,13 +785,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         ...grant,
         status,
         statusAt: at,
-        statusNote: note.trim().slice(0, 280),
+        statusNote: note.trim().slice(0, 500),
       }
+      const records: PhotoRecord[] = photos.map((photo) => ({
+        id: uid("img"),
+        accountId: account.id,
+        spotId: null,
+        createdAt: at,
+        fileName: photo.name,
+        mime: "image/jpeg",
+        blob: dataUrlToBlob(photo.dataUrl),
+      }))
       const summary =
         status === "secured"
           ? `Field agent marked the vehicle secured${next.statusNote ? `: ${next.statusNote}` : "."}`
           : `Field agent could not secure the vehicle${next.statusNote ? `: ${next.statusNote}` : "."}`
-      await putFieldGrant(next, stampAccount(account), makeEvent(account.id, "recovery", summary))
+      const withPhotos = records.length ? `${summary} ${records.length} condition photo(s) saved on this device.` : summary
+      await putFieldRecovery(next, records, stampAccount(account), makeEvent(account.id, "recovery", withPhotos))
       await reload()
     },
     [makeEvent, reload, requireAccount, stampAccount],
@@ -849,8 +862,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   )
 
   const applyFieldStatus = useCallback(
-    async (token: string, status: "secured" | "unable", note: string) => {
-      await writeFieldStatus(token, status, note, new Date().toISOString())
+    async (token: string, status: "secured" | "unable", note: string, photos: ConditionPhoto[] = []) => {
+      await writeFieldStatus(token, status, note, new Date().toISOString(), photos)
     },
     [writeFieldStatus],
   )
@@ -859,7 +872,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     async (code: string) => {
       const parsed = decodeFieldReturn(code)
       if (!parsed) throw new Error("That is not a field update code.")
-      await writeFieldStatus(parsed.token, parsed.status, parsed.note, parsed.at || new Date().toISOString())
+      await writeFieldStatus(parsed.token, parsed.status, parsed.note, parsed.at || new Date().toISOString(), parsed.photos)
     },
     [writeFieldStatus],
   )

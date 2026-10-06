@@ -1,13 +1,17 @@
 import { useMemo, useState, type ReactNode } from "react"
-import { Link, useParams } from "react-router-dom"
-import { Button, Field, TextInput, ThemeToggle, Wordmark, errorText, usePageTitle } from "../components/ui"
+import { useParams } from "react-router-dom"
+import { Area, Button, Field, TextInput, ThemeToggle, Wordmark, errorText, usePageTitle } from "../components/ui"
 import { formatStamp } from "../domain/dates"
 import {
+  MAX_CONDITION_PHOTOS,
   buildFieldSnapshot,
+  conditionPhotosFrom,
   decodeFieldSnapshot,
   encodeFieldReturn,
+  type ConditionPhoto,
   type FieldSnapshot,
 } from "../domain/fieldLink"
+import { blobToJpegDataUrl } from "../lib/images"
 import { useStore } from "../state/Store"
 
 export default function FieldLinkPage() {
@@ -15,6 +19,7 @@ export default function FieldLinkPage() {
   const { token = "" } = useParams()
   const store = useStore()
   const [note, setNote] = useState("")
+  const [files, setFiles] = useState<File[]>([])
   const [returnCode, setReturnCode] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
@@ -64,10 +69,22 @@ export default function FieldLinkPage() {
   async function mark(status: "secured" | "unable") {
     setFormError(null)
     setReturnCode(null)
+    let photos: ConditionPhoto[] = []
+    try {
+      photos = await readConditionPhotos(files)
+    } catch (reason) {
+      setFormError(errorText(reason))
+      return
+    }
     if (onDevice) {
       try {
-        await store.applyFieldStatus(token, status, note)
-        setMessage(status === "secured" ? "Marked secured on the dealership device." : "Status saved on the dealership device.")
+        await store.applyFieldStatus(token, status, note, photos)
+        setFiles([])
+        setMessage(
+          status === "secured"
+            ? "Marked secured on the dealership device. The recovery note and photos stayed here."
+            : "Status saved on the dealership device. The recovery note and photos stayed here.",
+        )
       } catch (reason) {
         setFormError(errorText(reason))
       }
@@ -78,20 +95,21 @@ export default function FieldLinkPage() {
       token,
       status,
       at: new Date().toISOString(),
-      note: note.trim().slice(0, 280),
+      note: note.trim().slice(0, 500),
+      photos,
     })
     setReturnCode(code)
     try {
       await navigator.clipboard.writeText(code)
-      setMessage("Update code copied. Send it back to the dealership. They apply it on their device.")
+      setMessage("Update code copied. Send it back to the dealership. They apply the note and photos on their device. Nothing was uploaded.")
     } catch {
-      setMessage("Send this update code back to the dealership. They apply it on their device.")
+      setMessage("Send this update code back to the dealership. They apply the note and photos on their device. Nothing was uploaded.")
     }
   }
 
   return (
     <Shell>
-      <p className="badge">Field link · no account</p>
+      <p className="badge">One assigned vehicle · no login</p>
       <h1 className="mt-3 font-display text-4xl">{view.vehicle || "Vehicle"}</h1>
       <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
         {view.dealership ? `${view.dealership} · ` : ""}
@@ -138,14 +156,24 @@ export default function FieldLinkPage() {
           void mark("secured")
         }}
       >
-        <h2 className="text-lg font-semibold">Recovery status</h2>
+        <h2 className="text-lg font-semibold">Recovery log</h2>
         <p className="text-sm leading-6 text-zinc-600 dark:text-zinc-400">
           {onDevice
-            ? "This browser has the lot file, so the status writes here."
-            : "This phone does not have the lot file. Marking secured creates a code for the dealership."}
+            ? "This browser has the lot file, so the note and photos write here. This page still does not open the dashboard."
+            : "This phone does not have the lot file and cannot sign in. The note and photos go back as a code the dealership applies. They are not uploaded."}
         </p>
-        <Field label="Note">
-          <TextInput value={note} onChange={(event) => setNote(event.target.value)} />
+        <Field label="Recovery note">
+          <Area value={note} onChange={(event) => setNote(event.target.value)} />
+        </Field>
+        <Field label="Condition photos" hint={`Up to ${MAX_CONDITION_PHOTOS}. They stay with this update and are not uploaded.`}>
+          <input
+            className="block w-full text-sm"
+            type="file"
+            accept="image/*"
+            capture="environment"
+            multiple
+            onChange={(event) => setFiles(Array.from(event.target.files ?? []).slice(0, MAX_CONDITION_PHOTOS))}
+          />
         </Field>
         <div className="flex flex-wrap gap-2">
           <Button type="submit">Mark secured</Button>
@@ -186,9 +214,22 @@ function Shell({ children }: { children: ReactNode }) {
         <ThemeToggle />
       </div>
       <div className="mt-8">{children}</div>
-      <Link to="/" className="mt-8 text-sm font-semibold text-sky-700 underline dark:text-cyan-300">
-        RepoFuse
-      </Link>
+      <p className="mt-8 text-sm leading-6 text-zinc-500">
+        This link is one assigned vehicle. It is not a dealership sign-in. Phone, address, balances, and other files are not on this page.
+      </p>
     </div>
   )
+}
+
+async function readConditionPhotos(files: File[]): Promise<ConditionPhoto[]> {
+  if (files.length > MAX_CONDITION_PHOTOS) throw new Error(`Add up to ${MAX_CONDITION_PHOTOS} condition photos.`)
+  const photos: ConditionPhoto[] = []
+  for (const file of files) {
+    const compressed = await blobToJpegDataUrl(file)
+    if (!compressed) throw new Error("Could not read a condition photo.")
+    photos.push({ name: (file.name || "condition.jpg").slice(0, 80), dataUrl: compressed.dataUrl })
+  }
+  const clean = conditionPhotosFrom(photos)
+  if (!clean) throw new Error("Those photos are too large to keep with this update. Use fewer shots.")
+  return clean
 }

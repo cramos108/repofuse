@@ -47,6 +47,15 @@ async function bitmapToJpeg(bitmap: ImageBitmap, maxEdge: number, quality: numbe
   return blob
 }
 
+export function dataUrlToBlob(dataUrl: string): Blob {
+  const match = /^data:image\/jpeg;base64,([A-Za-z0-9+/=\s]+)$/.exec(dataUrl)
+  if (!match?.[1]) throw new Error("A condition photo was not a JPEG.")
+  const binary = atob(match[1].replace(/\s/g, ""))
+  const bytes = new Uint8Array(binary.length)
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
+  return new Blob([bytes], { type: "image/jpeg" })
+}
+
 function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()

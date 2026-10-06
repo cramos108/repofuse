@@ -195,6 +195,21 @@ export async function putFieldGrant(grant: FieldGrant, account: Account, event: 
   await tx.done
 }
 
+export async function putFieldRecovery(
+  grant: FieldGrant,
+  photos: PhotoRecord[],
+  account: Account,
+  event: AuditEvent,
+): Promise<void> {
+  const db = await getDb()
+  const tx = db.transaction(["fieldGrants", "photos", "accounts", "events"], "readwrite")
+  await tx.objectStore("fieldGrants").put(grant)
+  for (const photo of photos) await tx.objectStore("photos").put(photo)
+  await tx.objectStore("accounts").put(account)
+  await tx.objectStore("events").put(event)
+  await tx.done
+}
+
 export async function putExpense(expense: ExpenseLine, account: Account, event: AuditEvent): Promise<void> {
   const db = await getDb()
   const tx = db.transaction(["expenses", "accounts", "events"], "readwrite")

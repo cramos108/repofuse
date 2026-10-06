@@ -1,15 +1,63 @@
 import { useState } from "react"
+import { Link } from "react-router-dom"
 import { Button, Card, Field, TextInput, errorText } from "./ui"
 import { buildFieldSnapshot, fieldLinkUrl, type FieldAgentStatus } from "../domain/fieldLink"
 import { useStore } from "../state/Store"
 
 export function FieldStatusFlag({ status }: { status: FieldAgentStatus | null }) {
-  if (status !== "secured") return null
+  if (!status) return null
+  if (status === "secured") {
+    return (
+      <span className="badge border-emerald-500/40 text-emerald-800 dark:text-emerald-200">
+        <span aria-hidden className="status-dot text-emerald-400" />
+        Field secured
+      </span>
+    )
+  }
+  if (status === "unable") {
+    return (
+      <span className="badge border-rose-500/40 text-rose-700 dark:text-rose-200">
+        <span aria-hidden className="status-dot text-rose-400" />
+        Could not secure
+      </span>
+    )
+  }
   return (
-    <span className="badge border-emerald-500/40 text-emerald-800 dark:text-emerald-200">
-      <span aria-hidden className="status-dot text-emerald-400" />
-      Field secured
+    <span className="badge">
+      <span aria-hidden className="status-dot text-cyan-300" />
+      Assigned
     </span>
+  )
+}
+
+export function FieldAssignments() {
+  const store = useStore()
+  const assignments = store.fieldGrants.filter((grant) => !grant.revokedAt)
+  return (
+    <Card>
+      <h2 className="text-lg font-semibold">Field assignments</h2>
+      <p className="mt-1 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+        Signed-in collectors keep the ledger and this dashboard. An outside recovery agent does not sign in. A field link assigns one vehicle. The agent can leave a recovery note and condition photos. Phone, address, balances, and every other file stay on this device.
+      </p>
+      {assignments.length === 0 ? (
+        <p className="mt-3 text-sm">No active assignments. Open a file and generate a field link.</p>
+      ) : (
+        <ul className="mt-3 space-y-2 text-sm">
+          {assignments.map((grant) => {
+            const account = store.accounts.find((item) => item.id === grant.accountId)
+            const vehicle = account ? `${account.vehicleYear} ${account.vehicleMake} ${account.vehicleModel}`.trim() : "Vehicle"
+            return (
+              <li key={grant.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-800">
+                <Link to={`/app/accounts/${grant.accountId}/field`} className="font-semibold">
+                  {vehicle || "Vehicle"} · {grant.agencyLabel}
+                </Link>
+                <FieldStatusFlag status={grant.status} />
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </Card>
   )
 }
 
@@ -55,7 +103,7 @@ export function FieldLinkPanel({ accountId }: { accountId: string }) {
     <Card>
       <h2 className="text-lg font-semibold">Agency field link</h2>
       <p className="mt-1 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-        A recovery agency opens this link with no account. They see the VIN, the last locations on this device, and the personal-property notes. They can mark the vehicle secured. The snapshot stays in the link. It is not uploaded.
+        Assign one vehicle to an outside recovery agent. They open the link on a phone, with no dashboard login. They see this vehicle, the last locations, and the property notes. They can add a recovery note and condition photos. They do not see phone numbers, addresses, balances, or any other file. The snapshot stays in the link. It is not uploaded.
       </p>
       <form
         className="mt-4 space-y-3"
@@ -119,7 +167,7 @@ export function FieldLinkPanel({ accountId }: { accountId: string }) {
             .catch((reason: unknown) => setFormError(errorText(reason)))
         }}
       >
-        <Field label="Update code from the agency" hint="Paste the code they send back after marking the vehicle secured.">
+        <Field label="Update code from the agency" hint="Paste the code they send back. It can include the recovery note and condition photos. Nothing is uploaded.">
           <TextInput value={returnCode} onChange={(event) => setReturnCode(event.target.value)} />
         </Field>
         <Button type="submit" variant="secondary">Apply field update</Button>

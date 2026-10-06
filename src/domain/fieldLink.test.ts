@@ -73,7 +73,43 @@ describe("field link", () => {
       note: "In the yard",
     })
     expect(decodeFieldReturn(code)?.status).toBe("secured")
+    expect(decodeFieldReturn(code)?.photos).toEqual([])
     expect(decodeFieldReturn("nope")).toBeNull()
+  })
+
+  it("keeps condition photos on the update code and out of the vehicle snapshot", () => {
+    const snapshot = buildFieldSnapshot({
+      token: "fld_test",
+      dealership: "North Lot",
+      agency: "Ridge Recovery",
+      account,
+      spots: [],
+      inventory: [],
+      status: "assigned",
+    })
+    expect(JSON.stringify(snapshot)).not.toMatch(/data:image|phone|address|payoff/)
+    const photo = { name: "condition.jpg", dataUrl: "data:image/jpeg;base64,aaaa" }
+    const code = encodeFieldReturn({
+      v: 1,
+      token: "fld_test",
+      status: "secured",
+      at: "2026-03-03T12:00:00.000Z",
+      note: "Driver door dent",
+      photos: [photo],
+    })
+    expect(decodeFieldReturn(code)?.photos).toEqual([photo])
+    expect(
+      decodeFieldReturn(
+        encodeFieldReturn({
+          v: 1,
+          token: "fld_test",
+          status: "secured",
+          at: "2026-03-03T12:00:00.000Z",
+          note: "too many",
+          photos: [photo, photo, photo, photo],
+        }),
+      ),
+    ).toBeNull()
   })
 
   it("reports a live secured grant ahead of an open assignment", () => {

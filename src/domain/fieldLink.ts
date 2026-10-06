@@ -16,12 +16,21 @@ export interface FieldSnapshot {
   status: FieldAgentStatus
 }
 
+export interface ConditionPhoto {
+  name: string
+  dataUrl: string
+}
+
+export const MAX_CONDITION_PHOTOS = 3
+const MAX_PHOTO_URL = 150_000
+
 export interface FieldReturn {
   v: 1
   token: string
   status: "secured" | "unable"
   at: string
   note: string
+  photos?: ConditionPhoto[]
 }
 
 function clip(value: string, max = 240): string {
@@ -102,6 +111,21 @@ export function encodeFieldReturn(value: FieldReturn): string {
   return encodeJson(value)
 }
 
+export function conditionPhotosFrom(value: unknown): ConditionPhoto[] | null {
+  if (value == null) return []
+  if (!Array.isArray(value) || value.length > MAX_CONDITION_PHOTOS) return null
+  const photos: ConditionPhoto[] = []
+  for (const item of value) {
+    if (!item || typeof item !== "object") return null
+    const row = item as { name?: unknown; dataUrl?: unknown }
+    if (typeof row.dataUrl !== "string" || !row.dataUrl.startsWith("data:image/jpeg;base64,")) return null
+    if (row.dataUrl.length > MAX_PHOTO_URL) return null
+    const name = typeof row.name === "string" && row.name.trim() ? row.name.trim().slice(0, 80) : "condition.jpg"
+    photos.push({ name, dataUrl: row.dataUrl })
+  }
+  return photos
+}
+
 export function decodeFieldReturn(raw: string): FieldReturn | null {
   const text = raw.trim()
   if (!text) return null
@@ -112,7 +136,16 @@ export function decodeFieldReturn(raw: string): FieldReturn | null {
     if (row.v !== 1 || typeof row.token !== "string") return null
     if (row.status !== "secured" && row.status !== "unable") return null
     if (typeof row.at !== "string" || typeof row.note !== "string") return null
-    return row
+    const photos = conditionPhotosFrom("photos" in row ? row.photos : undefined)
+    if (!photos) return null
+    return {
+      v: 1,
+      token: row.token,
+      status: row.status,
+      at: row.at,
+      note: row.note.slice(0, 500),
+      photos,
+    }
   } catch {
     return null
   }
