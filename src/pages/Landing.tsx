@@ -216,6 +216,20 @@ export default function Landing() {
           </Link>
         </section>
       </main>
+
+      <footer className="border-t border-slate-200 bg-white py-8 dark:border-zinc-800 dark:bg-zinc-950">
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 text-sm font-semibold text-slate-500 sm:flex-row sm:items-center sm:justify-between dark:text-zinc-400">
+          <p>© {new Date().getFullYear()} RepoFuse. A LeadFuse product for independent BHPH dealers.</p>
+          <div className="flex gap-4">
+            <a href="#privacy" className="text-cyan-800 underline decoration-cyan-400 dark:text-cyan-300">
+              Security & Privacy
+            </a>
+            <a href="https://bhph.leadfuse.ai/" className="text-cyan-800 underline decoration-cyan-400 dark:text-cyan-300">
+              LeadFuse BHPH AI
+            </a>
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }
