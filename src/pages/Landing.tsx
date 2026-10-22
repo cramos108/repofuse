@@ -224,7 +224,12 @@ export default function Landing() {
             <a href="#privacy" className="text-cyan-800 underline decoration-cyan-400 dark:text-cyan-300">
               Security & Privacy
             </a>
-            <a href="https://bhph.leadfuse.ai/" className="text-cyan-800 underline decoration-cyan-400 dark:text-cyan-300">
+            <a
+              href="https://bhph.leadfuse.ai/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-cyan-800 underline decoration-cyan-400 dark:text-cyan-300"
+            >
               LeadFuse BHPH AI
             </a>
           </div>
