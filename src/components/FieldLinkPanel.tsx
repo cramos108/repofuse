@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { Link } from "react-router-dom"
 import { Button, Card, Field, TextInput, errorText } from "./ui"
-import { buildFieldSnapshot, fieldLinkUrl, type FieldAgentStatus } from "../domain/fieldLink"
+import type { FieldAgentStatus } from "../domain/fieldLink"
 import { useStore } from "../state/Store"
 
 export function FieldStatusFlag({ status }: { status: FieldAgentStatus | null }) {
@@ -37,7 +37,7 @@ export function FieldAssignments() {
     <Card>
       <h2 className="text-lg font-semibold">Field assignments</h2>
       <p className="mt-1 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-        Signed-in collectors keep the ledger and this dashboard. An outside recovery agent does not sign in. A field link assigns one vehicle. The agent can leave a recovery note and condition photos. Phone, address, balances, and every other file stay on this device.
+        Signed-in collectors keep the ledger and this dashboard. An outside recovery agent does not sign in. A field link assigns one vehicle. The agent sees make, model, VIN, last spotted location, notes, and photos. Phone, address, balances, settings, and every other file stay on this device.
       </p>
       {assignments.length === 0 ? (
         <p className="mt-3 text-sm">No active assignments. Open a file and generate a field link.</p>
@@ -74,21 +74,6 @@ export function FieldLinkPanel({ accountId }: { accountId: string }) {
 
   if (!account || !workspace) return null
 
-  function urlFor(token: string, agencyLabel: string, status: FieldAgentStatus) {
-    return fieldLinkUrl(
-      window.location.origin,
-      buildFieldSnapshot({
-        token,
-        dealership: workspace!.dealershipName,
-        agency: agencyLabel,
-        account: account!,
-        spots: store.spots.filter((spot) => spot.accountId === accountId),
-        inventory: store.inventory.filter((item) => item.accountId === accountId),
-        status,
-      }),
-    )
-  }
-
   async function copy(url: string) {
     setFreshUrl(url)
     try {
@@ -103,7 +88,7 @@ export function FieldLinkPanel({ accountId }: { accountId: string }) {
     <Card>
       <h2 className="text-lg font-semibold">Agency field link</h2>
       <p className="mt-1 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-        Assign one vehicle to an outside recovery agent. They open the link on a phone, with no dashboard login. They see this vehicle, the last locations, and the property notes. They can add a recovery note and condition photos. They do not see phone numbers, addresses, balances, or any other file. The snapshot stays in the link. It is not uploaded.
+        Assign one vehicle to an outside recovery agent. They open the link on a phone, with no dashboard login. They see make, model, VIN, last spotted location, notes, and photos. They do not see phone numbers, addresses, balances, dealership settings, collections logs, or any other file. The snapshot stays in the link after #. It is not uploaded.
       </p>
       <form
         className="mt-4 space-y-3"
@@ -136,7 +121,16 @@ export function FieldLinkPanel({ accountId }: { accountId: string }) {
             {grant.statusNote ? <p className="mt-1">{grant.statusNote}</p> : null}
             <div className="mt-2 flex flex-wrap gap-3">
               {!grant.revokedAt ? (
-                <button type="button" className="font-semibold underline" onClick={() => void copy(urlFor(grant.id, grant.agencyLabel, grant.status))}>
+                <button
+                  type="button"
+                  className="font-semibold underline"
+                  onClick={() =>
+                    void store
+                      .fieldLinkUrlFor(grant.id)
+                      .then(copy)
+                      .catch((reason: unknown) => setFormError(errorText(reason)))
+                  }
+                >
                   Copy fresh link
                 </button>
               ) : null}

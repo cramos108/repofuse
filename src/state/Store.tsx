@@ -10,7 +10,15 @@ import {
 } from "react"
 import { findItem } from "../domain/checklists"
 import { AccountLimitError, remainingOpenSlots } from "../domain/limits"
-import { buildFieldSnapshot, conditionPhotosFrom, decodeFieldReturn, fieldLinkUrl, type ConditionPhoto } from "../domain/fieldLink"
+import {
+  buildFieldSnapshot,
+  conditionPhotosFrom,
+  decodeFieldReturn,
+  fieldLinkUrl,
+  MAX_SNAPSHOT_PHOTOS,
+  MAX_SNAPSHOT_PHOTO_URL,
+  type ConditionPhoto,
+} from "../domain/fieldLink"
 import { assertAccess, roleOf } from "../domain/roles"
 import { getProfile } from "../domain/profiles"
 import { computeStage, earliestDispositionOn } from "../domain/stage"
@@ -28,6 +36,7 @@ import type {
   NoticeMethod,
   NoticeRecord,
   PhotoRecord,
+  SpotRecord,
   Workspace,
 } from "../domain/types"
 import type { Seat } from "../domain/roles"
@@ -37,6 +46,7 @@ import {
   deleteExpense,
   eraseLot,
   exportSnapshot,
+  getPhoto,
   loadLot,
   photosForAccount,
   putAccount,
@@ -53,9 +63,25 @@ import {
   type LotData,
 } from "../lib/db"
 import { uid } from "../lib/id"
-import { compressImage, dataUrlToBlob } from "../lib/images"
+import { compressImage, dataUrlToBlob, blobToJpegDataUrl } from "../lib/images"
 import { buildSample } from "../lib/sample"
 import { currentSession, fetchLicenseTier, fetchOwnMembership, pullWorkspaceSettings, signOutPro, supabase } from "../lib/supabase"
+
+async function photosForSnapshot(spots: SpotRecord[]): Promise<ConditionPhoto[]> {
+  const ids = [...spots]
+    .sort((a, b) => b.at.localeCompare(a.at))
+    .flatMap((spot) => spot.photoIds)
+    .slice(0, MAX_SNAPSHOT_PHOTOS)
+  const photos: ConditionPhoto[] = []
+  for (const id of ids) {
+    const record = await getPhoto(id)
+    if (!record) continue
+    const compressed = await blobToJpegDataUrl(record.blob, 480, 0.52)
+    if (!compressed || compressed.dataUrl.length > MAX_SNAPSHOT_PHOTO_URL) continue
+    photos.push({ name: (record.fileName || "vehicle.jpg").slice(0, 80), dataUrl: compressed.dataUrl })
+  }
+  return photos
+}
 
 const EMPTY: LotData = {
   workspace: null,
@@ -161,6 +187,7 @@ interface StoreValue extends LotData {
   restoreFromFile: (file: File) => Promise<void>
   eraseEverything: () => Promise<void>
   createFieldLink: (accountId: string, agencyLabel: string) => Promise<string>
+  fieldLinkUrlFor: (grantId: string) => Promise<string>
   revokeFieldLink: (id: string) => Promise<void>
   applyFieldStatus: (token: string, status: "secured" | "unable", note: string, photos?: ConditionPhoto[]) => Promise<void>
   applyFieldReturn: (code: string) => Promise<void>
@@ -807,6 +834,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [makeEvent, reload, requireAccount, stampAccount],
   )
 
+  const snapshotForGrant = useCallback(async (accountId: string, token: string, agencyLabel: string, status: FieldGrant["status"]) => {
+    const workspace = requireWorkspace()
+    const account = requireAccount(accountId)
+    const spots = lotRef.current.spots.filter((spot) => spot.accountId === accountId)
+    return buildFieldSnapshot({
+      token,
+      dealership: workspace.dealershipName,
+      agency: agencyLabel,
+      account,
+      spots,
+      status,
+      photos: await photosForSnapshot(spots),
+    })
+  }, [requireAccount, requireWorkspace])
+
   const createFieldLink = useCallback(
     async (accountId: string, agencyLabel: string) => {
       const workspace = requireWorkspace()
@@ -829,19 +871,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         stampAccount(account),
         makeEvent(accountId, "recovery", `Field link created for ${label}.`),
       )
-      const snapshot = buildFieldSnapshot({
-        token: grant.id,
-        dealership: workspace.dealershipName,
-        agency: label,
-        account,
-        spots: lotRef.current.spots.filter((spot) => spot.accountId === accountId),
-        inventory: lotRef.current.inventory.filter((item) => item.accountId === accountId),
-        status: "assigned",
-      })
+      const snapshot = await snapshotForGrant(accountId, grant.id, label, "assigned")
       await reload()
       return fieldLinkUrl(window.location.origin, snapshot)
     },
-    [gate, makeEvent, reload, requireAccount, requireWorkspace, stampAccount],
+    [gate, makeEvent, reload, requireAccount, requireWorkspace, snapshotForGrant, stampAccount],
+  )
+
+  const fieldLinkUrlFor = useCallback(
+    async (grantId: string) => {
+      const workspace = requireWorkspace()
+      gate(workspace, "field")
+      const grant = lotRef.current.fieldGrants.find((item) => item.id === grantId)
+      if (!grant || grant.revokedAt) throw new Error("That field link is not active on this device.")
+      const snapshot = await snapshotForGrant(grant.accountId, grant.id, grant.agencyLabel, grant.status)
+      return fieldLinkUrl(window.location.origin, snapshot)
+    },
+    [gate, requireWorkspace, snapshotForGrant],
   )
 
   const revokeFieldLink = useCallback(
@@ -949,6 +995,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       restoreFromFile,
       eraseEverything,
       createFieldLink,
+      fieldLinkUrlFor,
       revokeFieldLink,
       applyFieldStatus,
       applyFieldReturn,
@@ -990,6 +1037,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       restoreFromFile,
       eraseEverything,
       createFieldLink,
+      fieldLinkUrlFor,
       revokeFieldLink,
       applyFieldStatus,
       applyFieldReturn,

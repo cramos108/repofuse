@@ -6,62 +6,116 @@ import {
   decodeFieldSnapshot,
   encodeFieldReturn,
   encodeFieldSnapshot,
+  fieldLinkUrl,
   fieldStatusFor,
+  readFieldSnapshotFromLocation,
 } from "./fieldLink"
-import type { Account, InventoryItem, SpotRecord } from "./types"
+import type { Account, SpotRecord } from "./types"
 
 const account = {
-  borrowerName: "Avery Quinn",
   vehicleYear: "2014",
   vehicleMake: "Honda",
   vehicleModel: "Accord",
   vin: "1HGCM82633A004352",
   stockNumber: "S-21",
-} as Pick<Account, "borrowerName" | "vehicleYear" | "vehicleMake" | "vehicleModel" | "vin" | "stockNumber">
+  borrowerName: "Avery Quinn",
+  phone: "2145550100",
+  address: "1 Main St",
+  payoffCents: 9400,
+  notes: "internal collections log",
+} as Pick<Account, "vehicleYear" | "vehicleMake" | "vehicleModel" | "vin" | "stockNumber"> & {
+  borrowerName: string
+  phone: string
+  address: string
+  payoffCents: number
+  notes: string
+}
+
+const spot: SpotRecord = {
+  id: "s",
+  accountId: "a",
+  at: "2026-03-01T15:00:00.000Z",
+  latitude: 32.7,
+  longitude: -96.8,
+  accuracyMeters: 12,
+  placeNote: "Lot C",
+  observation: "Seen at the curb",
+  authorityAttested: true,
+  photoIds: [],
+}
+
+function sampleSnapshot() {
+  return buildFieldSnapshot({
+    token: "fld_test",
+    dealership: "North Lot",
+    agency: "Ridge Recovery",
+    account,
+    spots: [spot],
+    status: "assigned",
+  })
+}
 
 describe("field link", () => {
   it("round-trips a vehicle snapshot without the ledger", () => {
+    const snapshot = sampleSnapshot()
+    const encoded = JSON.stringify(snapshot)
+    expect(Object.keys(snapshot).sort()).toEqual(
+      ["agency", "dealership", "make", "model", "photos", "spots", "status", "stock", "token", "v", "vehicle", "vin", "year"].sort(),
+    )
+    expect(encoded).not.toMatch(/phone|address|payoff|Avery|collections log|borrower|property/i)
+    const decoded = decodeFieldSnapshot(encodeFieldSnapshot(snapshot))
+    expect(decoded?.vin).toBe(account.vin)
+    expect(decoded?.make).toBe("Honda")
+    expect(decoded?.model).toBe("Accord")
+    expect(decoded?.spots[0]?.place).toBe("Lot C")
+    expect(decoded?.spots[0]?.note).toBe("Seen at the curb")
+    expect(decoded?.photos).toEqual([])
+    expect(decoded && "borrower" in decoded).toBe(false)
+    expect(decoded && "property" in decoded).toBe(false)
+    expect(decodeFieldSnapshot("not-a-link")).toBeNull()
+  })
+
+  it("puts the snapshot in the URL hash so the path does not carry vehicle data", () => {
+    const snapshot = sampleSnapshot()
+    const url = fieldLinkUrl("https://repofuse.example", snapshot)
+    expect(url.startsWith("https://repofuse.example/go/fld_test#")).toBe(true)
+    const hash = url.slice(url.indexOf("#") + 1)
+    expect(decodeFieldSnapshot(hash)?.vin).toBe(account.vin)
+    expect(url.slice(0, url.indexOf("#"))).not.toContain(account.vin)
+    expect(readFieldSnapshotFromLocation({ hash: `#${hash}`, pathname: "/go/fld_test" })?.vin).toBe(account.vin)
+    expect(readFieldSnapshotFromLocation({ hash: `#${hash}`, pathname: "/go/other-token" })).toBeNull()
+  })
+
+  it("drops stuffed ledger fields from a decoded snapshot", () => {
+    const stuffed = {
+      ...sampleSnapshot(),
+      borrower: "Avery Quinn",
+      phone: "2145550100",
+      notes: "internal collections log",
+      property: [{ description: "Car seat", where: "Cage 2", status: "held" }],
+      accounts: [{ id: "secret-file" }],
+      settings: { apiKey: "not-for-agency" },
+    }
+    const decoded = decodeFieldSnapshot(encodeFieldSnapshot(stuffed))
+    expect(decoded && "borrower" in decoded).toBe(false)
+    expect(decoded && "property" in decoded).toBe(false)
+    expect(decoded && "accounts" in decoded).toBe(false)
+    expect(decoded && "settings" in decoded).toBe(false)
+    expect(JSON.stringify(decoded)).not.toMatch(/Avery Quinn|2145550100|Car seat|apiKey|internal collections log/)
+  })
+
+  it("embeds vehicle photos in the snapshot", () => {
+    const photo = { name: "lot.jpg", dataUrl: "data:image/jpeg;base64,aaaa" }
     const snapshot = buildFieldSnapshot({
       token: "fld_test",
       dealership: "North Lot",
       agency: "Ridge Recovery",
       account,
-      spots: [
-        {
-          id: "s",
-          accountId: "a",
-          at: "2026-03-01T15:00:00.000Z",
-          latitude: 32.7,
-          longitude: -96.8,
-          accuracyMeters: 12,
-          placeNote: "Lot C",
-          observation: "Seen at the curb",
-          authorityAttested: true,
-          photoIds: [],
-        } satisfies SpotRecord,
-      ],
-      inventory: [
-        {
-          id: "i",
-          accountId: "a",
-          description: "Car seat",
-          condition: "worn",
-          storageLocation: "Cage 2",
-          status: "held",
-          createdAt: "2026-03-02T00:00:00.000Z",
-          releasedAt: null,
-          releasedTo: "",
-        } satisfies InventoryItem,
-      ],
+      spots: [],
       status: "assigned",
+      photos: [photo],
     })
-    const encoded = JSON.stringify(snapshot)
-    expect(encoded).not.toMatch(/phone|address|payoff|notes/i)
-    const decoded = decodeFieldSnapshot(encodeFieldSnapshot(snapshot))
-    expect(decoded?.vin).toBe(account.vin)
-    expect(decoded?.spots[0]?.place).toBe("Lot C")
-    expect(decoded?.property[0]?.description).toBe("Car seat")
-    expect(decodeFieldSnapshot("not-a-link")).toBeNull()
+    expect(decodeFieldSnapshot(encodeFieldSnapshot(snapshot))?.photos).toEqual([photo])
   })
 
   it("round-trips a secured update code", () => {
@@ -77,17 +131,7 @@ describe("field link", () => {
     expect(decodeFieldReturn("nope")).toBeNull()
   })
 
-  it("keeps condition photos on the update code and out of the vehicle snapshot", () => {
-    const snapshot = buildFieldSnapshot({
-      token: "fld_test",
-      dealership: "North Lot",
-      agency: "Ridge Recovery",
-      account,
-      spots: [],
-      inventory: [],
-      status: "assigned",
-    })
-    expect(JSON.stringify(snapshot)).not.toMatch(/data:image|phone|address|payoff/)
+  it("keeps condition photos on the update code", () => {
     const photo = { name: "condition.jpg", dataUrl: "data:image/jpeg;base64,aaaa" }
     const code = encodeFieldReturn({
       v: 1,

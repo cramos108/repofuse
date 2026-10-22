@@ -17,12 +17,14 @@ export async function compressImage(file: File): Promise<Blob> {
 
 export async function blobToJpegDataUrl(
   blob: Blob,
+  maxEdge = 900,
+  quality = 0.72,
 ): Promise<{ dataUrl: string; width: number; height: number } | null> {
   try {
     const bitmap = await createImageBitmap(blob)
     try {
-      const jpeg = await bitmapToJpeg(bitmap, 900, 0.72)
-      const width = Math.min(900, bitmap.width)
+      const jpeg = await bitmapToJpeg(bitmap, maxEdge, quality)
+      const width = Math.min(maxEdge, bitmap.width)
       const height = Math.round(bitmap.height * (width / bitmap.width))
       const dataUrl = await blobToDataUrl(jpeg)
       return { dataUrl, width, height }

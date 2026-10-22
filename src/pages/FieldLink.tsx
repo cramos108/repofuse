@@ -4,10 +4,9 @@ import { Area, Button, Field, TextInput, ThemeToggle, Wordmark, errorText, usePa
 import { formatStamp } from "../domain/dates"
 import {
   MAX_CONDITION_PHOTOS,
-  buildFieldSnapshot,
   conditionPhotosFrom,
-  decodeFieldSnapshot,
   encodeFieldReturn,
+  readFieldSnapshotFromLocation,
   type ConditionPhoto,
   type FieldSnapshot,
 } from "../domain/fieldLink"
@@ -15,7 +14,7 @@ import { blobToJpegDataUrl } from "../lib/images"
 import { useStore } from "../state/Store"
 
 export default function FieldLinkPage() {
-  usePageTitle("Field link")
+  usePageTitle("Field assignment")
   const { token = "" } = useParams()
   const store = useStore()
   const [note, setNote] = useState("")
@@ -23,48 +22,48 @@ export default function FieldLinkPage() {
   const [returnCode, setReturnCode] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
-  const remote = useMemo(() => decodeFieldSnapshot(window.location.hash.replace(/^#/, "")), [])
+  const [copiedVin, setCopiedVin] = useState(false)
+  const view = useMemo(() => readFieldSnapshotFromLocation(), [])
 
-  if (!store.ready) {
-    return <p className="mx-auto max-w-lg px-4 py-16 text-sm">Opening this field link…</p>
-  }
+  const grant = store.ready ? store.fieldGrants.find((item) => item.id === token) : undefined
+  const revoked = Boolean(grant?.revokedAt)
+  const onDevice = Boolean(grant && !grant.revokedAt)
 
-  const grant = store.fieldGrants.find((item) => item.id === token)
-  const account = grant ? store.accounts.find((item) => item.id === grant.accountId) : undefined
-  if (grant?.revokedAt) {
+  if (revoked) {
     return (
       <Shell>
-        <h1 className="font-display text-4xl">This field link was revoked</h1>
-        <p className="mt-3 text-sm leading-6">The dealership closed it on their device. Ask them for a new link.</p>
+        <h1 className="font-display text-3xl sm:text-4xl">This field link was revoked</h1>
+        <p className="mt-3 text-base leading-6">The dealership closed it on their device. Ask them for a new link.</p>
       </Shell>
     )
   }
 
-  const live =
-    grant && account && store.workspace
-      ? buildFieldSnapshot({
-          token,
-          dealership: store.workspace.dealershipName,
-          agency: grant.agencyLabel,
-          account,
-          spots: store.spots.filter((spot) => spot.accountId === account.id),
-          inventory: store.inventory.filter((item) => item.accountId === account.id),
-          status: grant.status,
-        })
-      : null
-  const view = live ?? (remote && remote.token === token ? remote : null)
   if (!view) {
     return (
       <Shell>
-        <h1 className="font-display text-4xl">This field link has no vehicle snapshot</h1>
-        <p className="mt-3 text-sm leading-6">
-          Ask the dealership for the full link, including the part after #. That part stays in the browser and is not uploaded.
+        <h1 className="font-display text-3xl sm:text-4xl">This field link has no vehicle snapshot</h1>
+        <p className="mt-3 text-base leading-6">
+          Ask the dealership for the full link, including the part after #. That snapshot stays in the browser and is not
+          uploaded.
         </p>
       </Shell>
     )
   }
 
-  const onDevice = Boolean(live)
+  const snapshot = view
+  const lastSpot = snapshot.spots[0]
+  const earlierSpots = snapshot.spots.slice(1)
+
+  async function copyVin() {
+    if (!snapshot.vin) return
+    try {
+      await navigator.clipboard.writeText(snapshot.vin)
+      setCopiedVin(true)
+      window.setTimeout(() => setCopiedVin(false), 2000)
+    } catch {
+      setCopiedVin(false)
+    }
+  }
 
   async function mark(status: "secured" | "unable") {
     setFormError(null)
@@ -82,8 +81,8 @@ export default function FieldLinkPage() {
         setFiles([])
         setMessage(
           status === "secured"
-            ? "Marked secured on the dealership device. The recovery note and photos stayed here."
-            : "Status saved on the dealership device. The recovery note and photos stayed here.",
+            ? "Marked secured on this device. The recovery note and photos stayed here."
+            : "Status saved on this device. The recovery note and photos stayed here.",
         )
       } catch (reason) {
         setFormError(errorText(reason))
@@ -101,54 +100,78 @@ export default function FieldLinkPage() {
     setReturnCode(code)
     try {
       await navigator.clipboard.writeText(code)
-      setMessage("Update code copied. Send it back to the dealership. They apply the note and photos on their device. Nothing was uploaded.")
+      setMessage("Update code copied. Send it back to the dealership. Nothing was uploaded.")
     } catch {
-      setMessage("Send this update code back to the dealership. They apply the note and photos on their device. Nothing was uploaded.")
+      setMessage("Send this update code back to the dealership. Nothing was uploaded.")
     }
   }
 
   return (
     <Shell>
-      <p className="badge">One assigned vehicle · no login</p>
-      <h1 className="mt-3 font-display text-4xl">{view.vehicle || "Vehicle"}</h1>
+      <p className="badge">One vehicle · no login</p>
+      <h1 className="mt-3 font-display text-3xl leading-tight sm:text-4xl">{headingFor(snapshot)}</h1>
       <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-        {view.dealership ? `${view.dealership} · ` : ""}
-        {view.agency ? `${view.agency} · ` : ""}
-        {view.borrower}
+        {[snapshot.dealership, snapshot.agency].filter(Boolean).join(" · ") || "Assigned vehicle"}
       </p>
-      <dl className="mt-4 space-y-2 text-sm">
-        <Row label="VIN" value={view.vin || "Not on this snapshot"} />
-        <Row label="Stock" value={view.stock || "Not on this snapshot"} />
-        <Row label="Status" value={labelFor(view.status)} />
-      </dl>
+
+      <div className="mt-5 space-y-3 text-base">
+        <Row label="Make" value={snapshot.make || "Not on this snapshot"} />
+        <Row label="Model" value={snapshot.model || "Not on this snapshot"} />
+        <Row
+          label="VIN"
+          value={
+            snapshot.vin ? (
+              <button type="button" className="w-full text-right font-mono text-base font-semibold tracking-wide break-all text-zinc-950 touch-manipulation dark:text-zinc-50" onClick={() => void copyVin()}>
+                {snapshot.vin}
+                <span className="mt-1 block font-sans text-xs font-medium tracking-normal text-zinc-500">
+                  {copiedVin ? "Copied" : "Tap to copy"}
+                </span>
+              </button>
+            ) : (
+              "Not on this snapshot"
+            )
+          }
+        />
+        {snapshot.stock ? <Row label="Stock" value={snapshot.stock} /> : null}
+        <Row label="Status" value={labelFor(snapshot.status)} />
+      </div>
+
       <section className="mt-6">
-        <h2 className="text-lg font-semibold">Last known locations</h2>
-        {view.spots.length === 0 ? <p className="mt-2 text-sm">No location was included.</p> : null}
-        <ul className="mt-2 space-y-3">
-          {view.spots.map((spot) => (
-            <li key={`${spot.at}-${spot.place}`} className="panel p-4 text-sm">
-              <p className="font-semibold">{spot.at ? formatStamp(spot.at) : "Time not noted"}</p>
-              <p className="mt-1">
-                {spot.place || "Place not noted"}
-                {spot.latitude != null && spot.longitude != null ? ` · ${spot.latitude.toFixed(5)}, ${spot.longitude.toFixed(5)}` : ""}
-              </p>
-              {spot.note ? <p className="mt-1 leading-6">{spot.note}</p> : null}
-            </li>
-          ))}
-        </ul>
+        <h2 className="text-lg font-semibold">Last spotted</h2>
+        {lastSpot ? (
+          <SpotCard spot={lastSpot} featured />
+        ) : (
+          <p className="mt-2 text-base leading-6">No location was included.</p>
+        )}
+        {earlierSpots.length > 0 ? (
+          <ul className="mt-3 space-y-3">
+            {earlierSpots.map((spot) => (
+              <li key={`${spot.at}-${spot.place}`}>
+                <SpotCard spot={spot} />
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </section>
+
       <section className="mt-6">
-        <h2 className="text-lg font-semibold">Personal property</h2>
-        {view.property.length === 0 ? <p className="mt-2 text-sm">No property notes were included.</p> : null}
-        <ul className="mt-2 space-y-3">
-          {view.property.map((item) => (
-            <li key={`${item.description}-${item.where}`} className="panel p-4 text-sm">
-              <p className="font-semibold">{item.description || "Item"}</p>
-              <p className="mt-1">{item.condition || "Condition not noted"} · {item.where || "Location not noted"} · {item.status}</p>
-            </li>
-          ))}
-        </ul>
+        <h2 className="text-lg font-semibold">Photos</h2>
+        {snapshot.photos.length === 0 ? <p className="mt-2 text-base leading-6">No photos were included.</p> : null}
+        {snapshot.photos.length > 0 ? (
+          <ul className="mt-3 grid grid-cols-1 gap-3">
+            {snapshot.photos.map((photo, index) => (
+              <li key={`${photo.name}-${index}`}>
+                <img
+                  src={photo.dataUrl}
+                  alt={photo.name || `Vehicle photo ${index + 1}`}
+                  className="w-full rounded-xl object-cover"
+                />
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </section>
+
       <form
         className="panel mt-6 space-y-3 p-4"
         onSubmit={(event) => {
@@ -156,18 +179,18 @@ export default function FieldLinkPage() {
           void mark("secured")
         }}
       >
-        <h2 className="text-lg font-semibold">Recovery log</h2>
+        <h2 className="text-lg font-semibold">Send an update</h2>
         <p className="text-sm leading-6 text-zinc-600 dark:text-zinc-400">
           {onDevice
-            ? "This browser has the lot file, so the note and photos write here. This page still does not open the dashboard."
-            : "This phone does not have the lot file and cannot sign in. The note and photos go back as a code the dealership applies. They are not uploaded."}
+            ? "This browser already has the assigned grant, so the note and photos write here. This page does not open the lot file."
+            : "This phone does not sign in and does not upload. The note and photos go back as a code the dealership applies on their device."}
         </p>
         <Field label="Recovery note">
           <Area value={note} onChange={(event) => setNote(event.target.value)} />
         </Field>
         <Field label="Condition photos" hint={`Up to ${MAX_CONDITION_PHOTOS}. They stay with this update and are not uploaded.`}>
           <input
-            className="block w-full text-sm"
+            className="block w-full text-base"
             type="file"
             accept="image/*"
             capture="environment"
@@ -175,9 +198,11 @@ export default function FieldLinkPage() {
             onChange={(event) => setFiles(Array.from(event.target.files ?? []).slice(0, MAX_CONDITION_PHOTOS))}
           />
         </Field>
-        <div className="flex flex-wrap gap-2">
-          <Button type="submit">Mark secured</Button>
-          <Button type="button" variant="secondary" onClick={() => void mark("unable")}>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button type="submit" className="min-h-12 w-full touch-manipulation sm:w-auto">
+            Mark secured
+          </Button>
+          <Button type="button" variant="secondary" className="min-h-12 w-full touch-manipulation sm:w-auto" onClick={() => void mark("unable")}>
             Could not secure
           </Button>
         </div>
@@ -191,31 +216,70 @@ export default function FieldLinkPage() {
   )
 }
 
+function headingFor(view: FieldSnapshot): string {
+  const named = `${view.year} ${view.make} ${view.model}`.trim()
+  return named || view.vehicle || "Assigned vehicle"
+}
+
 function labelFor(status: FieldSnapshot["status"]): string {
   if (status === "secured") return "Secured"
   if (status === "unable") return "Could not secure"
   return "Assigned"
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="flex items-start justify-between gap-4">
-      <dt className="text-zinc-500">{label}</dt>
-      <dd className="text-right font-semibold">{value}</dd>
+    <div className="grid w-full grid-cols-[7rem_1fr] items-start gap-x-3 text-base">
+      <span className="pt-0.5 text-zinc-500">{label}</span>
+      <span className="min-w-0 text-right font-semibold break-words text-zinc-950 dark:text-zinc-50">{value}</span>
+    </div>
+  )
+}
+
+function SpotCard({
+  spot,
+  featured = false,
+}: {
+  spot: FieldSnapshot["spots"][number]
+  featured?: boolean
+}) {
+  const mapsHref =
+    spot.latitude != null && spot.longitude != null ? `geo:${spot.latitude},${spot.longitude}` : null
+  return (
+    <div className={`panel mt-2 p-4 text-base ${featured ? "border-cyan-400/50" : ""}`}>
+      <p className="font-semibold">{spot.at ? formatStamp(spot.at) : "Time not noted"}</p>
+      <p className="mt-1 leading-6">{spot.place || "Place not noted"}</p>
+      {spot.latitude != null && spot.longitude != null ? (
+        <p className="mt-1 font-mono text-sm">
+          {spot.latitude.toFixed(5)}, {spot.longitude.toFixed(5)}
+        </p>
+      ) : null}
+      {spot.note ? (
+        <div className="mt-2">
+          <p className="text-sm font-semibold text-zinc-500">Notes</p>
+          <p className="mt-1 leading-6">{spot.note}</p>
+        </div>
+      ) : null}
+      {mapsHref ? (
+        <a className="mt-3 inline-flex min-h-11 items-center font-semibold underline touch-manipulation" href={mapsHref}>
+          Open in maps
+        </a>
+      ) : null}
     </div>
   )
 }
 
 function Shell({ children }: { children: ReactNode }) {
   return (
-    <div className="mx-auto flex min-h-dvh max-w-lg flex-col px-4 py-6">
+    <div className="mx-auto flex min-h-dvh max-w-lg flex-col px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))]">
       <div className="flex items-center justify-between">
         <Wordmark />
         <ThemeToggle />
       </div>
-      <div className="mt-8">{children}</div>
+      <div className="mt-6">{children}</div>
       <p className="mt-8 text-sm leading-6 text-zinc-500">
-        This link is one assigned vehicle. It is not a dealership sign-in. Phone, address, balances, and other files are not on this page.
+        This page is one assigned vehicle. It is not a dealership sign-in. Dealership settings, collections logs, and
+        other lot files are not on this page.
       </p>
     </div>
   )
